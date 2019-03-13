@@ -5,6 +5,8 @@ const AXES_TYPE = {
   X: 'x'
 };
 
+const noop = function() {};
+
 const rangeSelector = 'range-selector';
 
 const styleClasses = {
@@ -19,7 +21,7 @@ const styleClasses = {
 };
 
 class Chart {
-  constructor(data, root) {
+  constructor(root, data) {
     this.root = root;
 
     this.mainCanvas = root.querySelector('.' + styleClasses.mainChart);
@@ -36,7 +38,7 @@ class Chart {
     this.rSelector = root.querySelector('.' + styleClasses.rangeSelector);
 
     this.data = data;
-    this.series = [];
+    this.axies = [];
     this.moveElem = null;
 
     this.init();
@@ -46,26 +48,26 @@ class Chart {
 
   init() {
     const types = this.data.types;
-    const series = [];
+    const axies = [];
 
     Object.keys(types).forEach(key => {
       const type = types[key];
       if (type === AXES_TYPE.LINE) {
-        series.push(key);
+        axies.push(key);
       } else {
         this.x = key;
       }
     }, this);
 
-    this.series = series.map(sr => {
+    this.axies = axies.map(axis => {
       const dots = this.data.columns.find(col => {
-        return col[0] === sr;
+        return col[0] === axis;
       });
 
        return {
-         id: sr,
-         name: this.data.names[sr],
-         color: this.data.colors[sr],
+         id: axis,
+         name: this.data.names[axis],
+         color: this.data.colors[axis],
          dots: dots
        };
     }, this);
@@ -92,6 +94,7 @@ class Chart {
 
   mouseUp() {
     if (this.moveElem) {
+      this.moveElem.restoreCursor();
       this.moveElem = null;
     }
   }
@@ -100,6 +103,7 @@ class Chart {
     if (e.which !== 1) {
       return;
     }
+    this.rsCenter.style.cursor = 'grabbing';
     this.moveElem = {
       root: this.rSelector,
       elem: this.rsCenter,
@@ -109,13 +113,18 @@ class Chart {
       rightElem: this.rsRight,
       x: e.pageX,
       left: this.rsCenter.offsetLeft,
+      restoreCursor: function() {
+        this.elem.style.cursor = 'grab';
+      },
       move: function(newX) {
         const shift = this.x - newX;
         this.x = newX;
         this.left -= shift;
 
-        this.left = this.left < 0
-          ? 0
+        const halfBar = this.rightBar.clientWidth / 2;
+
+        this.left = this.left < -halfBar
+          ? -halfBar
           : this.left = Math.min(this.left, this.root.clientWidth - this.elem.clientWidth);
 
         const leftRightBar = this.left + this.elem.clientWidth;
@@ -124,9 +133,10 @@ class Chart {
         this.elem.style.left = (this.left + this.rightBar.clientWidth) + 'px';
         this.leftElem.style.width = this.left + 'px';
         this.leftBar.style.left = this.left + 'px';
+
         this.rightBar.style.left = leftRightBar + 'px';
         this.rightElem.style.left = leftRight + 'px';
-        this.rightElem.style.width = (this.root.clientWidth - leftRight) + 'px';
+        this.rightElem.style.width = (Math.max(this.root.clientWidth - leftRight, 0)) + 'px';
       }
     }
   }
@@ -142,19 +152,23 @@ class Chart {
       centerElem: this.rsCenter,
       x: e.pageX,
       left: this.rsRightBar.offsetLeft,
+      restoreCursor: noop,
       move: function(newX) {
-        const shift = this.x - newX;
-        this.x = newX;
-        this.left -= shift;
+        var self = this;
+        setTimeout(function() {
+          const shift = self.x - newX;
+          self.x = newX;
+          self.left -= shift;
 
-        this.left = this.left < this.centerElem.offsetLeft
-          ? this.centerElem.offsetLeft
-          : Math.min(this.left, this.root.clientWidth - this.elem.clientWidth);
+          self.left = self.left < self.centerElem.offsetLeft
+            ? self.centerElem.offsetLeft
+            : Math.min(self.left, self.root.clientWidth - self.elem.clientWidth);
 
-        this.elem.style.left = this.left + 'px';
-        this.rightElem.style.width = (this.root.clientWidth - this.left) + 'px';
-        this.rightElem.style.left = (this.left + this.elem.clientWidth) + 'px';
-        this.centerElem.style.width = (this.centerElem.clientWidth - shift) + 'px';
+          self.elem.style.left = self.left + 'px';
+          self.rightElem.style.width = (self.root.clientWidth - self.left - self.elem.clientWidth) + 'px';
+          self.rightElem.style.left = (self.left + self.elem.clientWidth) + 'px';
+          self.centerElem.style.width = (self.left - self.centerElem.offsetLeft) + 'px';
+        }, 50);
       }
     };
   }
@@ -170,6 +184,7 @@ class Chart {
       centerElem: this.rsCenter,
       x: e.pageX,
       left: this.rsLeftBar.offsetLeft,
+      restoreCursor: noop,
       move: function(newX) {
         const shift = this.x - newX;
         this.x = newX;
@@ -204,7 +219,7 @@ class Chart {
   maxY() {
     let max = Number.NEGATIVE_INFINITY;
 
-    this.series.forEach(sr => {
+    this.axies.forEach(sr => {
      for(let i = 1; i < sr.dots.length; i++) {
        if (sr.dots[i] > max) {
          max = sr.dots[i];
@@ -225,7 +240,7 @@ class Chart {
 
     ctx.transform(1, 0, 0, -1, 0, ctx.canvas.height);
 
-    this.series.forEach(y => {
+    this.axies.forEach(y => {
       ctx.beginPath();
 
       ctx.moveTo(this.time[1].val * ratioX, y.dots[1] * ratioY);
@@ -249,7 +264,7 @@ const loadData = async function(src) {
 
 const drawChart = async function(src) {
   const data = await loadData(src);
-  const chart = new Chart(data[0], document.querySelector('#chart1'));
+  const chart = new Chart(document.querySelector('#chart1'), data[0]);
   chart.draw();
 };
 
