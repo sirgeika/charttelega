@@ -4,3 +4,61 @@
   height: 600px;
   width: 600px;
 }
+
+.range-chart-area {
+  position: relative;
+  padding: 10px 0;
+}
+
+.range-selector {
+  box-sizing: border-box;
+  position: absolute;
+  width: 600px;
+  height: 80px;
+  top: 0;
+}
+
+.range-selector__right,
+.range-selector__left {
+  box-sizing: border-box;
+  position: absolute;
+  top: 0;
+  height: 80px;
+  background: rgba(236, 240, 241, 0.6);
+}
+
+.range-selector__left {
+  left: 0;
+  width: 400px;
+}
+
+.range-selector__center {
+  box-sizing: border-box;
+  position: absolute;
+  top: 0;
+  left: 400px;
+  height: 80px;
+  width: 200px;
+  border-bottom: 3px solid #ECF0F1;
+  border-top: 3px solid #ECF0F1;
+  cursor: grab;
+}
+
+.range-selector__left-bar,
+.range-selector__right-bar {
+  box-sizing: border-box;
+  position: absolute;
+  top: 0;
+  height: 80px;
+  width: 10px;
+  background: #ECF0F1;
+  cursor: col-resize;
+}
+
+.range-selector__left-bar {
+  left: 390px;
+}
+
+.range-selector__right-bar {
+  right: 0;
+}
