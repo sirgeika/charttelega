@@ -1,20 +1,17 @@
 .chart {
   margin: 0 auto;
   padding: 10px;
-  height: 600px;
-  width: 600px;
 }
 
 .range-chart-area {
   position: relative;
-  padding: 10px 0;
+  padding: 5px 0;
 }
 
 .range-selector {
   box-sizing: border-box;
   position: absolute;
-  width: 600px;
-  height: 80px;
+  /*height: 80px;*/
   top: 0;
 }
 
@@ -23,22 +20,22 @@
   box-sizing: border-box;
   position: absolute;
   top: 0;
-  height: 80px;
+  /*height: 80px;*/
   background: rgba(236, 240, 241, 0.6);
 }
 
 .range-selector__left {
   left: 0;
-  width: 400px;
+  /*width: 400px;*/
 }
 
 .range-selector__center {
   box-sizing: border-box;
   position: absolute;
   top: 0;
-  left: 410px;
-  height: 80px;
-  width: 180px;
+  /*left: 410px;*/
+  /*height: 80px;*/
+  /*width: 180px;*/
   border-bottom: 3px solid #ECF0F1;
   border-top: 3px solid #ECF0F1;
   cursor: grab;
@@ -49,14 +46,14 @@
   box-sizing: border-box;
   position: absolute;
   top: 0;
-  height: 80px;
+  /*height: 80px;*/
   width: 10px;
   background: #ECF0F1;
   cursor: col-resize;
 }
 
 .range-selector__left-bar {
-  left: 400px;
+  /*left: 400px;*/
 }
 
 .range-selector__right-bar {

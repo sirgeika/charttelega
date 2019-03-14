@@ -8,7 +8,7 @@ const AXES_TYPE = {
 const defaultOptions = {
   height: 600,
   width: 600,
-  initialDraw: 20
+  drawPart: 20
 };
 
 const moveTimeout = 50;
@@ -21,41 +21,84 @@ const styleClasses = {
   mainChart: 'main-chart',
   rangeChart: 'range-chart',
   rangeSelector: rangeSelector,
-  rangeSelectorLeft: rangeSelector + '__left',
-  rangeSelectorLeftBar: rangeSelector + '__left-bar',
-  rangeSelectorCenter: rangeSelector + '__center',
-  rangeSelectorRight: rangeSelector + '__right',
-  rangeSelectorRightBar: rangeSelector + '__right-bar'
+  rangeChartArea: 'range-chart-area',
+  rsLeft: rangeSelector + '__left',
+  rsLeftBar: rangeSelector + '__left-bar',
+  rsCenter: rangeSelector + '__center',
+  rsRight: rangeSelector + '__right',
+  rsRightBar: rangeSelector + '__right-bar'
 };
 
 class Chart {
   constructor(root, data, options) {
     this.root = root;
+
     this.options = Object.assign({}, defaultOptions, options);
-
-    // this.createElements()
-
-    this.mainCanvas = root.querySelector('.' + styleClasses.mainChart);
-    this.mainCtx = this.mainCanvas.getContext('2d');
-
-    this.rangeCanvas = root.querySelector('.' + styleClasses.rangeChart);
-    this.rangeCtx = this.rangeCanvas.getContext('2d');
-
-    this.rsLeft = root.querySelector('.' + styleClasses.rangeSelectorLeft);
-    this.rsRight = root.querySelector('.' + styleClasses.rangeSelectorRight);
-    this.rsLeftBar = root.querySelector('.' + styleClasses.rangeSelectorLeftBar);
-    this.rsRightBar = root.querySelector('.' + styleClasses.rangeSelectorRightBar);
-    this.rsCenter = root.querySelector('.' + styleClasses.rangeSelectorCenter);
-    this.rSelector = root.querySelector('.' + styleClasses.rangeSelector);
 
     this.data = data;
     this.axies = [];
     this.time = [];
     this.moveElem = null;
 
+    this.createElements();
+
+    this.mainCtx = this.mainCanvas.getContext('2d');
+    this.rangeCtx = this.rangeCanvas.getContext('2d');
+
     this.init();
-    this.initTimeAxis();
     this.bindEvents();
+  }
+
+  static createElement(root, tag, className) {
+    const el = document.createElement(tag);
+    el.setAttribute('class', className);
+    return root.appendChild(el);
+  }
+
+  createElements() {
+    const width = this.options.width + 'px';
+    const rangeCanvasHeight = Math.ceil(this.options.height / 10) + 'px';
+    const rangeHeight = Math.ceil(this.options.height / 10 + 10) + 'px';
+
+    const centerWidth = Math.ceil(this.options.width / 100 * this.options.drawPart);
+    const leftWidth = this.options.width - centerWidth;
+
+    this.root.style.width = width;
+    this.root.style.height = this.options.height + 'px';
+
+    // main chart
+    this.mainCanvas = Chart.createElement(this.root,'canvas', styleClasses.mainChart);
+    this.mainCanvas.setAttribute('width', width);
+    this.mainCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
+
+    const area = Chart.createElement(this.root, 'div', styleClasses.rangeChartArea);
+
+    // range chart
+    this.rangeCanvas = Chart.createElement(area, 'canvas', styleClasses.rangeChart);
+    this.rangeCanvas.setAttribute('width', width);
+    this.rangeCanvas.setAttribute('height', rangeCanvasHeight);
+
+    this.rSelector = Chart.createElement(area, 'div', styleClasses.rangeSelector);
+    this.rSelector.style.width = width;
+    this.rSelector.style.height = rangeHeight;
+
+    this.rsLeft = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeft);
+    this.rsLeft.style.height = rangeHeight;
+    this.rsLeft.style.width = leftWidth + 'px';
+
+    this.rsLeftBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeftBar);
+    this.rsLeftBar.style.height = rangeHeight;
+    this.rsLeftBar.style.left = leftWidth + 'px';
+
+    this.rsCenter = Chart.createElement(this.rSelector, 'div', styleClasses.rsCenter);
+    this.rsCenter.style.height = rangeHeight;
+    this.rsCenter.style.width = (centerWidth - this.rsLeftBar.clientWidth) + 'px';
+    this.rsCenter.style.left = (leftWidth + this.rsLeftBar.clientWidth) + 'px';
+
+    this.rsRightBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsRightBar);
+    this.rsRightBar.style.height = rangeHeight;
+    this.rsRight = Chart.createElement(this.rSelector, 'div', styleClasses.rsRight);
+    this.rsRight.style.height = rangeHeight;
   }
 
   init() {
@@ -83,6 +126,9 @@ class Chart {
          dots: dots.slice(1)
        };
     }, this);
+
+    this.initTimeAxis();
+    this.initDraw();
   }
 
   initDraw() {
@@ -133,7 +179,7 @@ class Chart {
 
   setMoveElem(realMove) {
     var defaultMove = {
-      redraw: this.__drawPart.bind(this),
+      redraw: this.redrawPart.bind(this),
       root: this.rSelector,
       rightBar: this.rsRightBar,
       leftBar: this.rsLeftBar,
@@ -270,11 +316,11 @@ class Chart {
     this.setMoveElem(leftMove);
   }
 
-  maxY() {
+  maxY(start, finish) {
     let max = Number.NEGATIVE_INFINITY;
 
     this.axies.forEach(sr => {
-     for(let i = 0; i < sr.dots.length; i++) {
+     for(let i = start; i < finish; i++) {
        if (sr.dots[i] > max) {
          max = sr.dots[i];
        }
@@ -285,7 +331,7 @@ class Chart {
 
   calcInitialPosition() {
     const all = this.time.length;
-    const displayElems = Math.ceil(all / 100 * this.options.initialDraw);
+    const displayElems = Math.ceil(all / 100 * this.options.drawPart);
     const startInd = all - displayElems + 1;
 
     return {
@@ -296,12 +342,11 @@ class Chart {
 
   draw() {
     const pos = this.calcInitialPosition();
-    this.initDraw();
     this.drawPart(this.mainCtx, pos.start, pos.finish);
     this.drawPart(this.rangeCtx);
   }
 
-  __drawPart() {
+  redrawPart() {
       const leftPos = this.rsLeftBar.offsetLeft;
       const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
       const start = Math.floor(leftPos / this.options.width * this.time.length);
@@ -313,7 +358,7 @@ class Chart {
     finish = finish || this.time.length;
 
     const ratioX = ctx.canvas.width / (finish - start);
-    const ratioY = ctx.canvas.height / this.maxY();
+    const ratioY = ctx.canvas.height / this.maxY(start, finish);
 
     ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
 
@@ -343,7 +388,7 @@ const drawChart = async function(src) {
   const data = await loadData(src);
   const chart = new Chart(document.querySelector('#chart1'),
     data[0], {
-    initialDraw: 33
+    drawPart: 31
   });
   chart.draw();
 };
