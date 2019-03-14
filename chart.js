@@ -5,6 +5,8 @@ const AXES_TYPE = {
   X: 'x'
 };
 
+const moveTimeout = 50;
+
 const noop = function() {};
 
 const rangeSelector = 'range-selector';
@@ -99,107 +101,135 @@ class Chart {
     }
   }
 
+  setMoveElem(realMove) {
+    var defaultMove = {
+      root: this.rSelector,
+      rightBar: this.rsRightBar,
+      leftBar: this.rsLeftBar,
+      leftElem: this.rsLeft,
+      rightElem: this.rsRight,
+      centerElem: this.rsCenter,
+      widthBar: this.rsLeftBar.clientWidth,
+      widthRoot: this.root.clientWidth,
+      left: 0,
+      restoreCursor: noop,
+      move: noop
+    };
+
+    this.moveElem = Object.assign({}, defaultMove, realMove);
+  }
+
   downRangeCenter(e) {
     if (e.which !== 1) {
       return;
     }
     this.rsCenter.style.cursor = 'grabbing';
-    this.moveElem = {
-      root: this.rSelector,
-      elem: this.rsCenter,
-      rightBar: this.rsRightBar,
-      leftBar: this.rsLeftBar,
-      leftElem: this.rsLeft,
-      rightElem: this.rsRight,
+
+    const centerMove = {
       x: e.pageX,
       left: this.rsCenter.offsetLeft,
       restoreCursor: function() {
-        this.elem.style.cursor = 'grab';
+        this.centerElem.style.cursor = 'grab';
       },
       move: function(newX) {
-        const shift = this.x - newX;
-        this.x = newX;
-        this.left -= shift;
+        const self = this;
+        setTimeout(function() {
+          const shift = self.x - newX;
+          self.x = newX;
+          self.left -= shift;
 
-        const halfBar = this.rightBar.clientWidth / 2;
+          const widthBar = self.widthBar;
+          const widthRoot = self.widthRoot;
+          const widthCenter = self.centerElem.clientWidth;
 
-        this.left = this.left < -halfBar
-          ? -halfBar
-          : this.left = Math.min(this.left, this.root.clientWidth - this.elem.clientWidth);
+          self.left = self.left < widthBar
+            ? widthBar
+            : Math.min(self.left, widthRoot - widthCenter - widthBar);
 
-        const leftRightBar = this.left + this.elem.clientWidth;
-        const leftRight = leftRightBar + this.rightBar.clientWidth;
+          const leftBarPos = Math.max(self.left - widthBar, 0);
+          const rightBarPos = self.left + widthCenter;
+          const rightElemPos = rightBarPos + widthBar;
 
-        this.elem.style.left = (this.left + this.rightBar.clientWidth) + 'px';
-        this.leftElem.style.width = this.left + 'px';
-        this.leftBar.style.left = this.left + 'px';
+          self.centerElem.style.left = self.left + 'px';
 
-        this.rightBar.style.left = leftRightBar + 'px';
-        this.rightElem.style.left = leftRight + 'px';
-        this.rightElem.style.width = (Math.max(this.root.clientWidth - leftRight, 0)) + 'px';
+          self.leftElem.style.width = leftBarPos + 'px';
+          self.leftBar.style.left = leftBarPos + 'px';
+
+          self.rightBar.style.left = rightBarPos + 'px';
+          self.rightElem.style.left = rightElemPos + 'px';
+          self.rightElem.style.width =
+            (Math.max(widthRoot - rightElemPos, 0)) + 'px';
+        }, moveTimeout);
       }
-    }
+    };
+    this.setMoveElem(centerMove);
   }
 
   downRightBar(e) {
     if (e.which !== 1) {
       return;
     }
-    this.moveElem = {
-      root: this.rSelector,
-      elem: this.rsRightBar,
-      rightElem: this.rsRight,
-      centerElem: this.rsCenter,
+
+    const rightMove = {
       x: e.pageX,
       left: this.rsRightBar.offsetLeft,
-      restoreCursor: noop,
       move: function(newX) {
-        var self = this;
+        const self = this;
         setTimeout(function() {
           const shift = self.x - newX;
           self.x = newX;
           self.left -= shift;
 
-          self.left = self.left < self.centerElem.offsetLeft
-            ? self.centerElem.offsetLeft
-            : Math.min(self.left, self.root.clientWidth - self.elem.clientWidth);
+          const widthBar = self.widthBar;
+          const widthRoot = self.widthRoot;
+          const leftCenter = self.centerElem.offsetLeft;
 
-          self.elem.style.left = self.left + 'px';
-          self.rightElem.style.width = (self.root.clientWidth - self.left - self.elem.clientWidth) + 'px';
-          self.rightElem.style.left = (self.left + self.elem.clientWidth) + 'px';
-          self.centerElem.style.width = (self.left - self.centerElem.offsetLeft) + 'px';
-        }, 50);
+          self.left = self.left < leftCenter
+            ? leftCenter
+            : Math.min(self.left, widthRoot - widthBar);
+
+          self.rightBar.style.left = self.left + 'px';
+          self.rightElem.style.width = (widthRoot - self.left - widthBar) + 'px';
+          self.rightElem.style.left = (self.left + widthBar) + 'px';
+
+          self.centerElem.style.width = (self.left - leftCenter) + 'px';
+        }, moveTimeout);
       }
     };
+    this.setMoveElem(rightMove);
   }
 
   downLeftBar(e) {
     if (e.which !== 1) {
       return;
     }
-    this.moveElem = {
-      root: this.rSelector,
-      elem: this.rsLeftBar,
-      leftElem: this.rsLeft,
-      centerElem: this.rsCenter,
+
+    const leftMove = {
       x: e.pageX,
       left: this.rsLeftBar.offsetLeft,
-      restoreCursor: noop,
       move: function(newX) {
-        const shift = this.x - newX;
-        this.x = newX;
-        this.left -= shift;
+        const self = this;
+        setTimeout(function() {
+          const shift = self.x - newX;
+          self.x = newX;
+          self.left -= shift;
 
-        this.left = this.left < 0
-          ? 0
-          : this.left = Math.min(this.left, this.root.clientWidth - this.elem.clientWidth * 2);
+          const widthBar = self.widthBar;
+          const widthRoot = self.widthRoot;
 
-        this.elem.style.left = this.left + 'px';
-        this.leftElem.style.width = this.left + 'px';
-        this.centerElem.style.width = (this.centerElem.clientWidth + shift) + 'px';
-        this.centerElem.style.left = (this.left + this.elem.clientWidth) + 'px';
+          self.left = self.left < 0
+            ? 0
+            : self.left = Math.min(self.left, widthRoot - widthBar * 2);
+
+          self.leftBar.style.left = self.left + 'px';
+          self.leftElem.style.width = self.left + 'px';
+
+          self.centerElem.style.width = (self.centerElem.clientWidth + shift) + 'px';
+          self.centerElem.style.left = (self.left + widthBar) + 'px';
+        }, moveTimeout);
       }
     };
+    this.setMoveElem(leftMove);
   }
 
   initTimeAxis() {
