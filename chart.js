@@ -5,6 +5,12 @@ const AXES_TYPE = {
   X: 'x'
 };
 
+const defaultOptions = {
+  height: 600,
+  width: 600,
+  initialDraw: 20
+};
+
 const moveTimeout = 50;
 
 const noop = function() {};
@@ -23,8 +29,11 @@ const styleClasses = {
 };
 
 class Chart {
-  constructor(root, data) {
+  constructor(root, data, options) {
     this.root = root;
+    this.options = Object.assign({}, defaultOptions, options);
+
+    // this.createElements()
 
     this.mainCanvas = root.querySelector('.' + styleClasses.mainChart);
     this.mainCtx = this.mainCanvas.getContext('2d');
@@ -41,6 +50,7 @@ class Chart {
 
     this.data = data;
     this.axies = [];
+    this.time = [];
     this.moveElem = null;
 
     this.init();
@@ -70,9 +80,29 @@ class Chart {
          id: axis,
          name: this.data.names[axis],
          color: this.data.colors[axis],
-         dots: dots
+         dots: dots.slice(1)
        };
     }, this);
+  }
+
+  initDraw() {
+    this.mainCtx.transform(1, 0, 0, -1, 0, this.mainCtx.canvas.height);
+    this.rangeCtx.transform(1, 0, 0, -1, 0, this.rangeCtx.canvas.height);
+  }
+
+  initTimeAxis() {
+    const time = this.data.columns.find(col => {
+      return col[0] === this.x;
+    });
+
+    for (let i = 1; i < time.length; i++) {
+      const val = time[i];
+      this.time.push({
+        raw: val,
+        date: new Date(val),
+        val: i
+      });
+    }
   }
 
   bindEvents() {
@@ -103,6 +133,7 @@ class Chart {
 
   setMoveElem(realMove) {
     var defaultMove = {
+      redraw: this.__drawPart.bind(this),
       root: this.rSelector,
       rightBar: this.rsRightBar,
       leftBar: this.rsLeftBar,
@@ -123,6 +154,7 @@ class Chart {
     if (e.which !== 1) {
       return;
     }
+
     this.rsCenter.style.cursor = 'grabbing';
 
     const centerMove = {
@@ -159,6 +191,8 @@ class Chart {
           self.rightElem.style.left = rightElemPos + 'px';
           self.rightElem.style.width =
             (Math.max(widthRoot - rightElemPos, 0)) + 'px';
+
+          window.requestAnimationFrame(self.redraw);
         }, moveTimeout);
       }
     };
@@ -193,6 +227,8 @@ class Chart {
           self.rightElem.style.left = (self.left + widthBar) + 'px';
 
           self.centerElem.style.width = (self.left - leftCenter) + 'px';
+
+          window.requestAnimationFrame(self.redraw);
         }, moveTimeout);
       }
     };
@@ -226,31 +262,19 @@ class Chart {
 
           self.centerElem.style.width = (self.centerElem.clientWidth + shift) + 'px';
           self.centerElem.style.left = (self.left + widthBar) + 'px';
+
+          window.requestAnimationFrame(self.redraw);
         }, moveTimeout);
       }
     };
     this.setMoveElem(leftMove);
   }
 
-  initTimeAxis() {
-    const time = this.data.columns.find(col => {
-      return col[0] === this.x;
-    });
-
-    this.time = time.map((val, ind) => {
-      return {
-        raw: val,
-        date: new Date(val),
-        val: ind
-      };
-    });
-  }
-
   maxY() {
     let max = Number.NEGATIVE_INFINITY;
 
     this.axies.forEach(sr => {
-     for(let i = 1; i < sr.dots.length; i++) {
+     for(let i = 0; i < sr.dots.length; i++) {
        if (sr.dots[i] > max) {
          max = sr.dots[i];
        }
@@ -259,24 +283,47 @@ class Chart {
     return max;
   }
 
+  calcInitialPosition() {
+    const all = this.time.length;
+    const displayElems = Math.ceil(all / 100 * this.options.initialDraw);
+    const startInd = all - displayElems + 1;
+
+    return {
+      start: startInd,
+      finish: all
+    };
+  }
+
   draw() {
-    this.drawPart(this.mainCtx);
+    const pos = this.calcInitialPosition();
+    this.initDraw();
+    this.drawPart(this.mainCtx, pos.start, pos.finish);
     this.drawPart(this.rangeCtx);
   }
 
-  drawPart(ctx) {
-    const ratioX = ctx.canvas.width / (this.time.length - 1);
+  __drawPart() {
+      const leftPos = this.rsLeftBar.offsetLeft;
+      const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
+      const start = Math.floor(leftPos / this.options.width * this.time.length);
+      const finish = Math.ceil(rightPos / this.options.width * this.time.length);
+      this.drawPart(this.mainCtx, start, finish);
+  }
+
+  drawPart(ctx, start=0, finish) {
+    finish = finish || this.time.length;
+
+    const ratioX = ctx.canvas.width / (finish - start);
     const ratioY = ctx.canvas.height / this.maxY();
 
-    ctx.transform(1, 0, 0, -1, 0, ctx.canvas.height);
+    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
 
     this.axies.forEach(y => {
       ctx.beginPath();
 
-      ctx.moveTo(this.time[1].val * ratioX, y.dots[1] * ratioY);
+      ctx.moveTo((this.time[start].val - start) * ratioX, y.dots[start] * ratioY);
 
-      for(let i = 2; i < this.time.length; i++) {
-        ctx.lineTo(this.time[i].val * ratioX, y.dots[i] * ratioY);
+      for(let i = start; i < finish; i++) {
+        ctx.lineTo((this.time[i].val - start) * ratioX, y.dots[i] * ratioY);
       }
 
       ctx.strokeStyle = y.color;
@@ -294,10 +341,9 @@ const loadData = async function(src) {
 
 const drawChart = async function(src) {
   const data = await loadData(src);
-  const chart = new Chart(document.querySelector('#chart1'), data[0]);
+  const chart = new Chart(document.querySelector('#chart1'),
+    data[0], {
+    initialDraw: 33
+  });
   chart.draw();
 };
-
-// (function() {
-//
-// })();
