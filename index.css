@@ -11,7 +11,6 @@
 .range-selector {
   box-sizing: border-box;
   position: absolute;
-  /*height: 80px;*/
   top: 0;
 }
 
@@ -20,22 +19,17 @@
   box-sizing: border-box;
   position: absolute;
   top: 0;
-  /*height: 80px;*/
   background: rgba(236, 240, 241, 0.6);
 }
 
 .range-selector__left {
   left: 0;
-  /*width: 400px;*/
 }
 
 .range-selector__center {
   box-sizing: border-box;
   position: absolute;
   top: 0;
-  /*left: 410px;*/
-  /*height: 80px;*/
-  /*width: 180px;*/
   border-bottom: 3px solid #ECF0F1;
   border-top: 3px solid #ECF0F1;
   cursor: grab;
@@ -46,16 +40,64 @@
   box-sizing: border-box;
   position: absolute;
   top: 0;
-  /*height: 80px;*/
   width: 10px;
   background: #ECF0F1;
   cursor: col-resize;
 }
 
-.range-selector__left-bar {
-  /*left: 400px;*/
-}
-
 .range-selector__right-bar {
   right: 0;
+}
+
+.check-axes {
+  display: flex;
+}
+
+.check-axes div {
+  margin-right: 54px;
+  border: 1px solid #ECF0F1;
+  padding: 10px 10px 10px 52px;
+  border-radius: 24px;
+}
+
+.check-axes label {
+  position: relative;
+  cursor: pointer;
+}
+
+.check-axes label::before {
+  position: absolute;
+  top: -5px;
+  left: -44px;
+  z-index: 1;
+  width: 24px;
+  height: 24px;
+  background: none;
+  border: 2px solid #5a5a5a;
+  border-radius: 50%;
+  content: "";
+}
+.check-axes label::after {
+  content: "";
+}
+
+.check-axes input[type="checkbox"] {
+  display: none;
+}
+
+.check-axes input[type="checkbox"]:checked ~ label::before {
+  border: 2px solid #5a5a5a;
+  background: #5a5a5a;
+}
+
+.check-axes input[type="checkbox"]:checked ~ label::after {
+  position: absolute;
+  top: 4px;
+  left: -38px;
+  z-index: 2;
+  width: 15px;
+  height: 5px;
+  border-left: 3px solid #fff;
+  border-bottom: 3px solid #fff;
+  transform: rotate(-45deg);
 }
