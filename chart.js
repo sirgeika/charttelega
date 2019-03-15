@@ -73,7 +73,7 @@ class Chart {
     const rangeCanvasHeight = Math.ceil(this.options.height / 10) + 'px';
     const rangeHeight = Math.ceil(this.options.height / 10 + 10) + 'px';
 
-    const centerWidth = Math.ceil(this.options.width / 100 * this.options.drawPart);
+    const centerWidth = Math.ceil(this.options.width / 100 * this.options.drawChart);
     const leftWidth = this.options.width - centerWidth;
 
     this.root.style.width = width;
@@ -154,8 +154,8 @@ class Chart {
         }
         return finded;
       });
-      this.drawPart(this.rangeCtx);
-      this.redrawPart();
+      this.drawChart(this.rangeCtx);
+      this.redrawChart();
     });
   }
 
@@ -221,13 +221,13 @@ class Chart {
 
   showTooltip(e) {
     if (this.hasTooltip) {
-      this.drawPart(this.mainCtx, true, this.start, this.finish);
+      this.drawChart(this.mainCtx, true, this.start, this.finish);
     }
     this.drawTooltip(this.mainCtx, e.offsetX, e.offsetY);
   }
 
   hideTooltip() {
-    this.drawPart(this.mainCtx, true, this.start, this.finish);
+    this.drawChart(this.mainCtx, true, this.start, this.finish);
     this.hasTooltip = false;
   }
 
@@ -247,7 +247,7 @@ class Chart {
 
   setMoveElem(options) {
     var defaultOpts = {
-      redraw: this.redrawPart.bind(this),
+      redraw: this.redrawChart.bind(this),
       root: this.rSelector,
       rightBar: this.rsRightBar,
       leftBar: this.rsLeftBar,
@@ -410,6 +410,7 @@ class Chart {
   drawTooltip(ctx, x, y) {
     this.hasTooltip = true;
 
+    // line, circles
     const endAngel = (Math.PI/180) * 360;
     const rel = x / ctx.canvas.width;
     const ind  = Math.round((this.finish - this.start) * rel);
@@ -417,7 +418,6 @@ class Chart {
     const ratioX = ctx.canvas.width / (this.finish - this.start);
     const ratioY = ctx.canvas.height / this.maxY(this.start, this.finish);
 
-    // ctx.
     ctx.beginPath();
     ctx.moveTo(ind * ratioX, 0);
     ctx.lineTo(ind * ratioX, ctx.canvas.height);
@@ -434,23 +434,50 @@ class Chart {
         ctx.stroke();
       }
     });
+
+    // tooltip
+    const rectWidth = 100;
+    const rectHeight = 100;
+    const cornerRadius = 20;
+    const rectX = 0;
+    const rectY = 0;
+
+    ctx.beginPath();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 20;
+    ctx.fillStyle = colors.white;
+    ctx.strokeStyle = colors.white;
+
+    ctx.strokeRect(
+      rectX+(cornerRadius/2),
+      rectY+(cornerRadius/2),
+      rectWidth-cornerRadius,
+      rectHeight-cornerRadius
+    );
+
+    ctx.fillRect(
+      rectX+(cornerRadius/2),
+      rectY+(cornerRadius/2),
+      rectWidth-cornerRadius,
+      rectHeight-cornerRadius
+    );
   }
 
   draw() {
     this.calcInitialPosition();
-    this.drawPart(this.mainCtx, true, this.start, this.finish);
-    this.drawPart(this.rangeCtx);
+    this.drawChart(this.mainCtx, true, this.start, this.finish);
+    this.drawChart(this.rangeCtx);
   }
 
-  redrawPart() {
+  redrawChart() {
       const leftPos = this.rsLeftBar.offsetLeft;
       const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
       this.start = Math.floor(leftPos / this.options.width * this.time.length);
       this.finish = Math.ceil(rightPos / this.options.width * this.time.length);
-      this.drawPart(this.mainCtx, true, this.start, this.finish);
+      this.drawChart(this.mainCtx, true, this.start, this.finish);
   }
 
-  drawPart(ctx, displayLabels, start=0, finish) {
+  drawChart(ctx, displayLabels, start=0, finish) {
     finish = finish || this.time.length;
 
     const maxY = this.maxY(start, finish);
