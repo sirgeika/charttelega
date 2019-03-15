@@ -1,11 +1,12 @@
 .chart {
-  margin: 0 auto;
   padding: 10px;
+  margin: 0 auto 50px;
 }
 
 .range-chart-area {
   position: relative;
   padding: 5px 0;
+  margin-top: 50px;
 }
 
 .range-selector {
