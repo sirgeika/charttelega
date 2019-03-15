@@ -177,8 +177,8 @@ class Chart {
     }
   }
 
-  setMoveElem(realMove) {
-    var defaultMove = {
+  setMoveElem(options) {
+    var defaultOpts = {
       redraw: this.redrawPart.bind(this),
       root: this.rSelector,
       rightBar: this.rsRightBar,
@@ -187,13 +187,13 @@ class Chart {
       rightElem: this.rsRight,
       centerElem: this.rsCenter,
       widthBar: this.rsLeftBar.clientWidth,
-      widthRoot: this.root.clientWidth,
+      widthRoot: this.rSelector.clientWidth,
       left: 0,
       restoreCursor: noop,
       move: noop
     };
 
-    this.moveElem = Object.assign({}, defaultMove, realMove);
+    this.moveElem = Object.assign({}, defaultOpts, options);
   }
 
   downRangeCenter(e) {
@@ -263,6 +263,8 @@ class Chart {
           const widthBar = self.widthBar;
           const widthRoot = self.widthRoot;
           const leftCenter = self.centerElem.offsetLeft;
+
+          console.log(widthRoot);
 
           self.left = self.left < leftCenter
             ? leftCenter
@@ -365,9 +367,9 @@ class Chart {
     this.axies.forEach(y => {
       ctx.beginPath();
 
-      ctx.moveTo((this.time[start].val - start) * ratioX, y.dots[start] * ratioY);
+      ctx.moveTo(0, y.dots[start] * ratioY);
 
-      for(let i = start; i < finish; i++) {
+      for(let i = start + 1; i < finish; i++) {
         ctx.lineTo((this.time[i].val - start) * ratioX, y.dots[i] * ratioY);
       }
 
