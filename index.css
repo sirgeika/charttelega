@@ -51,11 +51,12 @@
 
 .check-axes {
   display: flex;
+  margin-top: 20px;
 }
 
 .check-axes div {
   margin-right: 54px;
-  border: 1px solid #ECF0F1;
+  border: 2px solid #ddd;
   padding: 10px 10px 10px 52px;
   border-radius: 24px;
 }

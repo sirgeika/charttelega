@@ -137,13 +137,17 @@ class Chart {
       checkedLabel.style.backgroundColor = e.target.checked
         ? axis.color
         : '#fff';
+
+      this.axies.some((a) => {
+        const finded = a.id === axis.id;
+        if (finded) {
+          a.draw = !a.draw;
+        }
+        return finded;
+      });
+      this.drawPart(this.rangeCtx);
+      this.redrawPart();
     });
-    //
-    // return {
-    //   id: axis.id,
-    //   checkedLabel,
-    //   input
-    // };
   }
 
   init() {
@@ -168,7 +172,8 @@ class Chart {
          id: axis,
          name: this.data.names[axis],
          color: this.data.colors[axis],
-         dots: dots.slice(1)
+         dots: dots.slice(1),
+         draw: true
        };
     }, this);
 
@@ -365,12 +370,14 @@ class Chart {
   maxY(start, finish) {
     let max = Number.NEGATIVE_INFINITY;
 
-    this.axies.forEach(sr => {
-     for(let i = start; i < finish; i++) {
-       if (sr.dots[i] > max) {
-         max = sr.dots[i];
-       }
-     }
+    this.axies.forEach(axis => {
+      if (axis.draw) {
+        for(let i = start; i < finish; i++) {
+          if (axis.dots[i] > max) {
+            max = axis.dots[i];
+          }
+        }
+      }
     });
     return max;
   }
@@ -409,18 +416,20 @@ class Chart {
     ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
 
     this.axies.forEach(y => {
-      ctx.beginPath();
+      if (y.draw) {
+        ctx.beginPath();
 
-      ctx.moveTo(0, y.dots[start] * ratioY);
+        ctx.moveTo(0, y.dots[start] * ratioY);
 
-      for(let i = start + 1; i < finish; i++) {
-        ctx.lineTo((this.time[i].val - start) * ratioX, y.dots[i] * ratioY);
+        for(let i = start + 1; i < finish; i++) {
+          ctx.lineTo((this.time[i].val - start) * ratioX, y.dots[i] * ratioY);
+        }
+
+        ctx.strokeStyle = y.color;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
       }
-
-      ctx.strokeStyle = y.color;
-      ctx.lineWidth = 2;
-      ctx.lineJoin = 'round';
-      ctx.stroke();
     });
   }
 }
