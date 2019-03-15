@@ -120,13 +120,15 @@ class Chart {
   createCheckbox(root, axis) {
     const elem = Chart.createElement(root, 'div');
 
+    const id = axis.id + '_' +  Math.ceil(Math.random() * 1000);
+
     const input = Chart.createElement(elem, 'input');
     input.setAttribute('type', 'checkbox');
-    input.setAttribute('id', axis.id);
+    input.setAttribute('id', id);
     input.setAttribute('checked', true);
 
     const label = Chart.createElement(elem, 'label');
-    label.setAttribute('for', axis.id);
+    label.setAttribute('for', id);
     label.innerText = axis.name;
 
     const checkedLabel = Chart.createElement(label, 'span', styleClasses.checkedLabel);
@@ -446,4 +448,10 @@ const drawChart = async function(src) {
     drawPart: 31
   });
   chart.draw();
+
+  const chart2 = new Chart(document.querySelector('#chart2'),
+    data[4], {
+      drawPart: 31
+    });
+  chart2.draw();
 };
