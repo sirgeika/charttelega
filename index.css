@@ -65,7 +65,7 @@
   cursor: pointer;
 }
 
-.check-axes label::before {
+.check-axes .checked-label {
   position: absolute;
   top: -5px;
   left: -44px;
@@ -73,7 +73,7 @@
   width: 24px;
   height: 24px;
   background: none;
-  border: 2px solid #5a5a5a;
+  border: 2px solid;
   border-radius: 50%;
   content: "";
 }
@@ -85,17 +85,15 @@
   display: none;
 }
 
-.check-axes input[type="checkbox"]:checked ~ label::before {
-  border: 2px solid #5a5a5a;
-  background: #5a5a5a;
+.check-axes input[type="checkbox"]:checked ~ label .checked-label {
 }
 
 .check-axes input[type="checkbox"]:checked ~ label::after {
   position: absolute;
   top: 4px;
-  left: -38px;
+  left: -36px;
   z-index: 2;
-  width: 15px;
+  width: 10px;
   height: 5px;
   border-left: 3px solid #fff;
   border-bottom: 3px solid #fff;

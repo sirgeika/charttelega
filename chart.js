@@ -26,7 +26,9 @@ const styleClasses = {
   rsLeftBar: rangeSelector + '__left-bar',
   rsCenter: rangeSelector + '__center',
   rsRight: rangeSelector + '__right',
-  rsRightBar: rangeSelector + '__right-bar'
+  rsRightBar: rangeSelector + '__right-bar',
+  checkAxes: 'check-axes',
+  checkedLabel: 'checked-label'
 };
 
 class Chart {
@@ -40,18 +42,22 @@ class Chart {
     this.time = [];
     this.moveElem = null;
 
+    this.init();
+
     this.createElements();
 
     this.mainCtx = this.mainCanvas.getContext('2d');
     this.rangeCtx = this.rangeCanvas.getContext('2d');
 
-    this.init();
+    this.initDraw();
     this.bindEvents();
   }
 
   static createElement(root, tag, className) {
     const el = document.createElement(tag);
-    el.setAttribute('class', className);
+    if (className) {
+      el.setAttribute('class', className);
+    }
     return root.appendChild(el);
   }
 
@@ -99,6 +105,45 @@ class Chart {
     this.rsRightBar.style.height = rangeHeight;
     this.rsRight = Chart.createElement(this.rSelector, 'div', styleClasses.rsRight);
     this.rsRight.style.height = rangeHeight;
+
+    this.createCheckboxAxes();
+  }
+
+  createCheckboxAxes() {
+    const boxArea = Chart.createElement(this.root, 'div', styleClasses.checkAxes);
+
+    this.axies.forEach((axis) => {
+      this.createCheckbox(boxArea, axis);
+    });
+  }
+
+  createCheckbox(root, axis) {
+    const elem = Chart.createElement(root, 'div');
+
+    const input = Chart.createElement(elem, 'input');
+    input.setAttribute('type', 'checkbox');
+    input.setAttribute('id', axis.id);
+    input.setAttribute('checked', true);
+
+    const label = Chart.createElement(elem, 'label');
+    label.setAttribute('for', axis.id);
+    label.innerText = axis.name;
+
+    const checkedLabel = Chart.createElement(label, 'span', styleClasses.checkedLabel);
+    checkedLabel.style.borderColor = axis.color;
+    checkedLabel.style.backgroundColor = axis.color;
+
+    input.addEventListener('click', (e) => {
+      checkedLabel.style.backgroundColor = e.target.checked
+        ? axis.color
+        : '#fff';
+    });
+    //
+    // return {
+    //   id: axis.id,
+    //   checkedLabel,
+    //   input
+    // };
   }
 
   init() {
@@ -128,7 +173,6 @@ class Chart {
     }, this);
 
     this.initTimeAxis();
-    this.initDraw();
   }
 
   initDraw() {
