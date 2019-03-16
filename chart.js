@@ -53,13 +53,7 @@ class Chart {
     this.moveElem = null;
 
     this.init();
-
     this.createElements();
-
-    this.mainCtx = this.mainCanvas.getContext('2d');
-    this.rangeCtx = this.rangeCanvas.getContext('2d');
-    this.tooltipCtx = this.tooltipCanvas.getContext('2d');
-
     this.initDraw();
     this.bindEvents();
   }
@@ -73,36 +67,36 @@ class Chart {
   }
 
   createElements() {
-    const width = this.options.width + 'px';
+    const widthPx = this.options.width + 'px';
     const rangeCanvasHeight = Math.ceil(this.options.height / 10) + 'px';
     const rangeHeight = Math.ceil(this.options.height / 10 + 10) + 'px';
 
     const centerWidth = Math.ceil(this.options.width / 100 * this.options.drawPart);
     const leftWidth = this.options.width - centerWidth;
 
-    this.root.style.width = width;
+    this.root.style.width = widthPx;
     this.root.style.height = this.options.height + 'px';
 
     const div = Chart.createElement(this.root, 'div', styleClasses.mainChartWrap);
 
     // main chart
     this.mainCanvas = Chart.createElement(div,'canvas', styleClasses.mainChart);
-    this.mainCanvas.setAttribute('width', width);
+    this.mainCanvas.setAttribute('width', widthPx);
     this.mainCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
 
     this.tooltipCanvas = Chart.createElement(div, 'canvas', styleClasses.tooltip);
-    this.tooltipCanvas.setAttribute('width', width);
+    this.tooltipCanvas.setAttribute('width', widthPx);
     this.tooltipCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
 
     const area = Chart.createElement(this.root, 'div', styleClasses.rangeChartArea);
 
     // range chart
     this.rangeCanvas = Chart.createElement(area, 'canvas', styleClasses.rangeChart);
-    this.rangeCanvas.setAttribute('width', width);
+    this.rangeCanvas.setAttribute('width', widthPx);
     this.rangeCanvas.setAttribute('height', rangeCanvasHeight);
 
     this.rSelector = Chart.createElement(area, 'div', styleClasses.rangeSelector);
-    this.rSelector.style.width = width;
+    this.rSelector.style.width = widthPx;
     this.rSelector.style.height = rangeHeight;
 
     this.rsLeft = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeft);
@@ -115,7 +109,7 @@ class Chart {
 
     this.rsCenter = Chart.createElement(this.rSelector, 'div', styleClasses.rsCenter);
     this.rsCenter.style.height = rangeHeight;
-    this.rsCenter.style.width = (centerWidth - this.rsLeftBar.clientWidth) + 'px';
+    this.rsCenter.style.width = (centerWidth - this.rsLeftBar.clientWidth * 2) + 'px';
     this.rsCenter.style.left = (leftWidth + this.rsLeftBar.clientWidth) + 'px';
 
     this.rsRightBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsRightBar);
@@ -200,6 +194,10 @@ class Chart {
   }
 
   initDraw() {
+    this.mainCtx = this.mainCanvas.getContext('2d');
+    this.rangeCtx = this.rangeCanvas.getContext('2d');
+    this.tooltipCtx = this.tooltipCanvas.getContext('2d');
+
     this.mainCtx.transform(1, 0, 0, -1, 0, this.mainCtx.canvas.height);
     this.rangeCtx.transform(1, 0, 0, -1, 0, this.rangeCtx.canvas.height);
   }
@@ -410,10 +408,11 @@ class Chart {
     return max;
   }
 
-  calcInitialPosition() {
-    this.finish = this.time.length;
-    const displayElems = Math.ceil(this.finish / 100 * this.options.drawPart);
-    this.start = this.finish - displayElems + 1;
+  calcRangePosition() {
+    const leftPos = this.rsLeftBar.offsetLeft;
+    const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
+    this.start = Math.floor(leftPos / this.options.width * this.time.length);
+    this.finish = Math.ceil(rightPos / this.options.width * this.time.length);
   }
 
   drawTooltip(ctx, x, y) {
@@ -437,7 +436,8 @@ class Chart {
     this.axes.forEach((axis) => {
       if (axis.draw) {
         ctx.beginPath();
-        ctx.arc(ind * ratioX, height - axis.dots[this.start + ind - 1] * ratioY, 5, 0, endAngel);
+        ctx.arc(ind * ratioX, height - axis.dots[this.start + ind - 1] * ratioY,
+          5, 0, endAngel);
         ctx.strokeStyle = axis.color;
         ctx.fillStyle = colors.white;
         ctx.lineWidth = 2;
@@ -453,39 +453,36 @@ class Chart {
     const rectX = 0;
     const rectY = 0;
 
-    ctx.beginPath();
-    ctx.lineJoin = "round";
-    // ctx.lineWidth = 20;
-    ctx.fillStyle = colors.white;
-    ctx.strokeStyle = colors.white;
-
-    ctx.strokeRect(
-      rectX+(cornerRadius/2),
-      rectY+(cornerRadius/2),
-      rectWidth-cornerRadius,
-      rectHeight-cornerRadius
-    );
-
-    ctx.fillRect(
-      rectX+(cornerRadius/2),
-      rectY+(cornerRadius/2),
-      rectWidth-cornerRadius,
-      rectHeight-cornerRadius
-    );
+    // ctx.beginPath();
+    // ctx.lineJoin = "round";
+    // // ctx.lineWidth = 20;
+    // ctx.fillStyle = colors.white;
+    // ctx.strokeStyle = colors.white;
+    //
+    // ctx.strokeRect(
+    //   rectX+(cornerRadius/2),
+    //   rectY+(cornerRadius/2),
+    //   rectWidth-cornerRadius,
+    //   rectHeight-cornerRadius
+    // );
+    //
+    // ctx.fillRect(
+    //   rectX+(cornerRadius/2),
+    //   rectY+(cornerRadius/2),
+    //   rectWidth-cornerRadius,
+    //   rectHeight-cornerRadius
+    // );
   }
 
   draw() {
-    this.calcInitialPosition();
+    this.calcRangePosition();
     this.drawChart(this.mainCtx, true, this.start, this.finish);
     this.drawChart(this.rangeCtx);
   }
 
   redrawChart() {
-      const leftPos = this.rsLeftBar.offsetLeft;
-      const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
-      this.start = Math.floor(leftPos / this.options.width * this.time.length);
-      this.finish = Math.ceil(rightPos / this.options.width * this.time.length);
-      this.drawChart(this.mainCtx, true, this.start, this.finish);
+    this.calcRangePosition();
+    this.drawChart(this.mainCtx, true, this.start, this.finish);
   }
 
   drawChart(ctx, displayLabels, start=0, finish) {
@@ -574,9 +571,9 @@ const drawChart = async function(src) {
   });
   chart.draw();
 
-  const chart2 = new Chart(document.querySelector('#chart2'),
-    data[4], {
-      drawPart: 31
-    });
-  chart2.draw();
+  // const chart2 = new Chart(document.querySelector('#chart2'),
+  //   data[4], {
+  //     drawPart: 31
+  //   });
+  // chart2.draw();
 };
