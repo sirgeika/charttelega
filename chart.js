@@ -17,6 +17,8 @@ const colors = {
   text: '#70797f'
 };
 
+//#2a3240
+
 const moveTimeout = 50;
 
 const noop = function() {};
@@ -24,8 +26,10 @@ const noop = function() {};
 const rangeSelector = 'range-selector';
 
 const styleClasses = {
+  mainChartWrap: 'main-chart-wrap',
   mainChart: 'main-chart',
   rangeChart: 'range-chart',
+  tooltip: 'tooltip',
   rangeSelector: rangeSelector,
   rangeChartArea: 'range-chart-area',
   rsLeft: rangeSelector + '__left',
@@ -47,7 +51,6 @@ class Chart {
     this.axes = [];
     this.time = [];
     this.moveElem = null;
-    this.hasTooltip = false;
 
     this.init();
 
@@ -55,6 +58,7 @@ class Chart {
 
     this.mainCtx = this.mainCanvas.getContext('2d');
     this.rangeCtx = this.rangeCanvas.getContext('2d');
+    this.tooltipCtx = this.tooltipCanvas.getContext('2d');
 
     this.initDraw();
     this.bindEvents();
@@ -73,16 +77,22 @@ class Chart {
     const rangeCanvasHeight = Math.ceil(this.options.height / 10) + 'px';
     const rangeHeight = Math.ceil(this.options.height / 10 + 10) + 'px';
 
-    const centerWidth = Math.ceil(this.options.width / 100 * this.options.drawChart);
+    const centerWidth = Math.ceil(this.options.width / 100 * this.options.drawPart);
     const leftWidth = this.options.width - centerWidth;
 
     this.root.style.width = width;
     this.root.style.height = this.options.height + 'px';
 
+    const div = Chart.createElement(this.root, 'div', styleClasses.mainChartWrap);
+
     // main chart
-    this.mainCanvas = Chart.createElement(this.root,'canvas', styleClasses.mainChart);
+    this.mainCanvas = Chart.createElement(div,'canvas', styleClasses.mainChart);
     this.mainCanvas.setAttribute('width', width);
     this.mainCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
+
+    this.tooltipCanvas = Chart.createElement(div, 'canvas', styleClasses.tooltip);
+    this.tooltipCanvas.setAttribute('width', width);
+    this.tooltipCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
 
     const area = Chart.createElement(this.root, 'div', styleClasses.rangeChartArea);
 
@@ -148,11 +158,11 @@ class Chart {
         : colors.white;
 
       this.axes.some((a) => {
-        const finded = a.id === axis.id;
-        if (finded) {
+        const found = a.id === axis.id;
+        if (found) {
           a.draw = !a.draw;
         }
-        return finded;
+        return found;
       });
       this.drawChart(this.rangeCtx);
       this.redrawChart();
@@ -210,8 +220,8 @@ class Chart {
   }
 
   bindEvents() {
-    this.mainCanvas.addEventListener('mousemove', this.showTooltip.bind(this));
-    this.mainCanvas.addEventListener('mouseout', this.hideTooltip.bind(this));
+    this.tooltipCanvas.addEventListener('mousemove', this.showTooltip.bind(this));
+    this.tooltipCanvas.addEventListener('mouseout', this.hideTooltip.bind(this));
     this.rsLeftBar.addEventListener('mousedown', this.downLeftBar.bind(this));
     this.rsRightBar.addEventListener('mousedown', this.downRightBar.bind(this));
     this.rsCenter.addEventListener('mousedown', this.downRangeCenter.bind(this));
@@ -220,15 +230,14 @@ class Chart {
   }
 
   showTooltip(e) {
-    if (this.hasTooltip) {
-      this.drawChart(this.mainCtx, true, this.start, this.finish);
-    }
-    this.drawTooltip(this.mainCtx, e.offsetX, e.offsetY);
+    const ctx = this.tooltipCtx;
+    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
+    this.drawTooltip(ctx, e.offsetX, e.offsetY);
   }
 
   hideTooltip() {
-    this.drawChart(this.mainCtx, true, this.start, this.finish);
-    this.hasTooltip = false;
+    const ctx = this.tooltipCtx;
+    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
   }
 
   mouseMove(e) {
@@ -408,28 +417,30 @@ class Chart {
   }
 
   drawTooltip(ctx, x, y) {
-    this.hasTooltip = true;
+    const height = ctx.canvas.height;
+    const width = ctx.canvas.width;
 
     // line, circles
     const endAngel = (Math.PI/180) * 360;
-    const rel = x / ctx.canvas.width;
+    const rel = x / width;
     const ind  = Math.round((this.finish - this.start) * rel);
 
-    const ratioX = ctx.canvas.width / (this.finish - this.start);
-    const ratioY = ctx.canvas.height / this.maxY(this.start, this.finish);
+    const ratioX = width / (this.finish - this.start);
+    const ratioY = height / this.maxY(this.start, this.finish);
 
     ctx.beginPath();
     ctx.moveTo(ind * ratioX, 0);
-    ctx.lineTo(ind * ratioX, ctx.canvas.height);
+    ctx.lineTo(ind * ratioX, height);
     ctx.strokeStyle = colors.axes;
     ctx.stroke();
 
     this.axes.forEach((axis) => {
       if (axis.draw) {
         ctx.beginPath();
-        ctx.arc(ind * ratioX, axis.dots[this.start + ind - 1] * ratioY, 5, 0, endAngel);
+        ctx.arc(ind * ratioX, height - axis.dots[this.start + ind - 1] * ratioY, 5, 0, endAngel);
         ctx.strokeStyle = axis.color;
         ctx.fillStyle = colors.white;
+        ctx.lineWidth = 2;
         ctx.fill();
         ctx.stroke();
       }
@@ -444,7 +455,7 @@ class Chart {
 
     ctx.beginPath();
     ctx.lineJoin = "round";
-    ctx.lineWidth = 20;
+    // ctx.lineWidth = 20;
     ctx.fillStyle = colors.white;
     ctx.strokeStyle = colors.white;
 
@@ -511,12 +522,12 @@ class Chart {
 
   drawAxesLabels(ctx, maxY, ratioX, ratioY) {
     const partCount = 5;
-    const height = ctx.canvas.clientHeight;
+    const height = ctx.canvas.height;
 
     // dates
     ctx.beginPath();
     ctx.moveTo(0, 1);
-    ctx.lineTo(this.options.width, 1);
+    ctx.lineTo(ctx.canvas.width, 1);
 
     ctx.fillStyle = colors.text;
     ctx.font = '14px verdana, sans-serif';
@@ -536,7 +547,7 @@ class Chart {
     for (let i = 1; i <= partCount; i++) {
       const y = part * i;
       ctx.moveTo(0, y * ratioY);
-      ctx.lineTo(this.options.width, y * ratioY );
+      ctx.lineTo(ctx.canvas.width, y * ratioY );
 
       ctx.save();
       ctx.resetTransform();

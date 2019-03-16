@@ -3,6 +3,15 @@
   margin: 0 auto 50px;
 }
 
+.main-chart-wrap {
+  position: relative;
+}
+
+.tooltip {
+  position: absolute;
+  left: 0;
+}
+
 .range-chart-area {
   position: relative;
   padding: 5px 0;
