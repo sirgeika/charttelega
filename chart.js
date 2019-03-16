@@ -158,8 +158,7 @@ class Chart {
         }
         return found;
       });
-      this.drawChart(this.rangeCtx);
-      this.redrawChart();
+      this.draw();
     });
   }
 
@@ -211,8 +210,7 @@ class Chart {
       const val = time[i];
       this.time.push({
         raw: val,
-        date: new Date(val),
-        val: i
+        date: new Date(val)
       });
     }
   }
@@ -228,13 +226,15 @@ class Chart {
   }
 
   showTooltip(e) {
-    const ctx = this.tooltipCtx;
-    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
-    this.drawTooltip(ctx, e.offsetX, e.offsetY);
+    Chart.clrScr(this.tooltipCtx);
+    this.drawTooltip(this.tooltipCtx, e.offsetX, e.offsetY);
   }
 
   hideTooltip() {
-    const ctx = this.tooltipCtx;
+    Chart.clrScr(this.tooltipCtx)
+  }
+
+  static clrScr(ctx) {
     ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
   }
 
@@ -412,22 +412,20 @@ class Chart {
     const leftPos = this.rsLeftBar.offsetLeft;
     const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
     this.start = Math.floor(leftPos / this.options.width * this.time.length);
-    // if (this.start > 0) {
-    //   this.start--;
-    // }
     this.finish = Math.ceil(rightPos / this.options.width * this.time.length);
   }
 
-  drawTooltip(ctx, x, y) {
+  drawTooltip(ctx, x) {
     const height = ctx.canvas.height;
     const width = ctx.canvas.width;
 
     // line, circles
     const endAngel = (Math.PI/180) * 360;
     const rel = x / width;
-    const ind  = Math.round((this.finish - this.start - 1) * rel);
+    const parts = this.finish - this.start - 1;
+    const ind  = Math.round(parts * rel);
 
-    const ratioX = width / (this.finish - this.start - 1);
+    const ratioX = width / parts;
     const ratioY = height / this.maxY(this.start, this.finish);
 
     ctx.beginPath();
@@ -453,28 +451,64 @@ class Chart {
     const rectWidth = 100;
     const rectHeight = 100;
     const cornerRadius = 20;
-    const rectX = 0;
+    let rectX = ind * ratioX;
     const rectY = 0;
 
-    // ctx.beginPath();
-    // ctx.lineJoin = "round";
-    // // ctx.lineWidth = 20;
-    // ctx.fillStyle = colors.white;
-    // ctx.strokeStyle = colors.white;
-    //
-    // ctx.strokeRect(
-    //   rectX+(cornerRadius/2),
-    //   rectY+(cornerRadius/2),
-    //   rectWidth-cornerRadius,
-    //   rectHeight-cornerRadius
-    // );
-    //
-    // ctx.fillRect(
-    //   rectX+(cornerRadius/2),
-    //   rectY+(cornerRadius/2),
-    //   rectWidth-cornerRadius,
-    //   rectHeight-cornerRadius
-    // );
+    rectX = Math.max(0, rectX + (cornerRadius / 2) - rectWidth / 3);
+    if (rectX > width) {
+
+    }
+
+    ctx.save();
+
+    ctx.beginPath();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 10;
+    ctx.fillStyle = colors.white;
+    ctx.strokeStyle = '#dadada';
+
+    ctx.strokeRect(
+      rectX,
+      rectY + (cornerRadius / 2),
+      rectWidth - cornerRadius,
+      rectHeight - cornerRadius
+    );
+
+    ctx.fillRect(
+      rectX,
+      rectY + (cornerRadius / 2),
+      rectWidth - cornerRadius,
+      rectHeight - cornerRadius
+    );
+
+    ctx.beginPath();
+    ctx.strokeStyle = colors.white;
+    ctx.strokeRect(
+      rectX + 1,
+      rectY + (cornerRadius / 2) + 1,
+      rectWidth - cornerRadius - 3,
+      rectHeight - cornerRadius - 3
+    );
+
+    ctx.beginPath();
+    ctx.fillStyle = '#595959';
+    ctx.font = 'bold 16px verdana, sans-serif';
+    ctx.fillText(this.time[ind].date.toLocaleString('en', {
+      weekday: 'short',
+      month: 'short',
+      day: '2-digit'
+    }), rectX + 10, 25, );
+
+    this.axes.forEach((axis, index) => {
+      if (axis.draw) {
+        ctx.beginPath();
+        ctx.fillStyle = axis.color;
+        ctx.font = 'bold 18px verdana, sans-serif';
+        ctx.fillText(axis.dots[this.start + ind], rectX + 30  * (index + 1), 50);
+      }
+    });
+
+    ctx.restore();
   }
 
   draw() {
@@ -496,7 +530,7 @@ class Chart {
     const ratioX = ctx.canvas.width / (finish - start - 1);
     const ratioY = ctx.canvas.height / maxY;
 
-    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
+    Chart.clrScr(ctx);
 
     if (displayLabels) {
       this.drawAxesLabels(ctx, maxY, ratioX, ratioY);
@@ -505,12 +539,10 @@ class Chart {
     this.axes.forEach(y => {
       if (y.draw) {
         ctx.beginPath();
-
         ctx.moveTo(0, y.dots[start] * ratioY);
 
         for(let i = start; i < finish; i++) {
           ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
-          // ctx.lineTo((this.time[i].val - start) * ratioX, y.dots[i] * ratioY);
         }
 
         ctx.strokeStyle = y.color;
