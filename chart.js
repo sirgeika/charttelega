@@ -68,8 +68,8 @@ class Chart {
 
   createElements() {
     const widthPx = this.options.width + 'px';
-    const rangeCanvasHeight = Math.ceil(this.options.height / 10) + 'px';
-    const rangeHeight = Math.ceil(this.options.height / 10 + 10) + 'px';
+    const rangeCanvasHeightPx = Math.ceil(this.options.height / 10) + 'px';
+    const rangeHeightPx = Math.ceil(this.options.height / 10 + 10) + 'px';
 
     const centerWidth = Math.ceil(this.options.width / 100 * this.options.drawPart);
     const leftWidth = this.options.width - centerWidth;
@@ -93,29 +93,29 @@ class Chart {
     // range chart
     this.rangeCanvas = Chart.createElement(area, 'canvas', styleClasses.rangeChart);
     this.rangeCanvas.setAttribute('width', widthPx);
-    this.rangeCanvas.setAttribute('height', rangeCanvasHeight);
+    this.rangeCanvas.setAttribute('height', rangeCanvasHeightPx);
 
     this.rSelector = Chart.createElement(area, 'div', styleClasses.rangeSelector);
     this.rSelector.style.width = widthPx;
-    this.rSelector.style.height = rangeHeight;
+    this.rSelector.style.height = rangeHeightPx;
 
     this.rsLeft = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeft);
-    this.rsLeft.style.height = rangeHeight;
+    this.rsLeft.style.height = rangeHeightPx;
     this.rsLeft.style.width = leftWidth + 'px';
 
     this.rsLeftBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeftBar);
-    this.rsLeftBar.style.height = rangeHeight;
+    this.rsLeftBar.style.height = rangeHeightPx;
     this.rsLeftBar.style.left = leftWidth + 'px';
 
     this.rsCenter = Chart.createElement(this.rSelector, 'div', styleClasses.rsCenter);
-    this.rsCenter.style.height = rangeHeight;
+    this.rsCenter.style.height = rangeHeightPx;
     this.rsCenter.style.width = (centerWidth - this.rsLeftBar.clientWidth * 2) + 'px';
     this.rsCenter.style.left = (leftWidth + this.rsLeftBar.clientWidth) + 'px';
 
     this.rsRightBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsRightBar);
-    this.rsRightBar.style.height = rangeHeight;
+    this.rsRightBar.style.height = rangeHeightPx;
     this.rsRight = Chart.createElement(this.rSelector, 'div', styleClasses.rsRight);
-    this.rsRight.style.height = rangeHeight;
+    this.rsRight.style.height = rangeHeightPx;
 
     this.createCheckboxAxes();
   }
@@ -412,6 +412,9 @@ class Chart {
     const leftPos = this.rsLeftBar.offsetLeft;
     const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
     this.start = Math.floor(leftPos / this.options.width * this.time.length);
+    // if (this.start > 0) {
+    //   this.start--;
+    // }
     this.finish = Math.ceil(rightPos / this.options.width * this.time.length);
   }
 
@@ -422,9 +425,9 @@ class Chart {
     // line, circles
     const endAngel = (Math.PI/180) * 360;
     const rel = x / width;
-    const ind  = Math.round((this.finish - this.start) * rel);
+    const ind  = Math.round((this.finish - this.start - 1) * rel);
 
-    const ratioX = width / (this.finish - this.start);
+    const ratioX = width / (this.finish - this.start - 1);
     const ratioY = height / this.maxY(this.start, this.finish);
 
     ctx.beginPath();
@@ -436,7 +439,7 @@ class Chart {
     this.axes.forEach((axis) => {
       if (axis.draw) {
         ctx.beginPath();
-        ctx.arc(ind * ratioX, height - axis.dots[this.start + ind - 1] * ratioY,
+        ctx.arc(ind * ratioX, height - axis.dots[this.start + ind] * ratioY,
           5, 0, endAngel);
         ctx.strokeStyle = axis.color;
         ctx.fillStyle = colors.white;
@@ -490,7 +493,7 @@ class Chart {
 
     const maxY = this.maxY(start, finish);
 
-    const ratioX = ctx.canvas.width / (finish - start);
+    const ratioX = ctx.canvas.width / (finish - start - 1);
     const ratioY = ctx.canvas.height / maxY;
 
     ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
@@ -505,8 +508,9 @@ class Chart {
 
         ctx.moveTo(0, y.dots[start] * ratioY);
 
-        for(let i = start + 1; i < finish; i++) {
-          ctx.lineTo((this.time[i].val - start) * ratioX, y.dots[i] * ratioY);
+        for(let i = start; i < finish; i++) {
+          ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
+          // ctx.lineTo((this.time[i].val - start) * ratioX, y.dots[i] * ratioY);
         }
 
         ctx.strokeStyle = y.color;
