@@ -1,6 +1,7 @@
 .chart {
   padding: 10px;
-  margin: 0 auto 50px;
+  margin: 0 auto 100px;
+  border-bottom: 1px solid #ddd;
 }
 
 .main-chart-wrap {
@@ -109,4 +110,14 @@
   border-left: 3px solid #fff;
   border-bottom: 3px solid #fff;
   transform: rotate(-45deg);
+}
+
+.mode-switcher {
+  display: block;
+  text-align: center;
+  margin-top: 40px;
+  font-size: 20px;
+  font-family: "DejaVu Sans Mono", serif;
+  color: #4aa2ed;
+  cursor: pointer;
 }

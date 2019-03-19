@@ -17,7 +17,20 @@ const colors = {
   text: '#70797f'
 };
 
-//#2a3240
+const modes = {
+  night: {
+    id: 'night',
+    bg: '#2a3240',
+    border: '',
+    text: 'Switch to Day Mode'
+  },
+  day: {
+    id: 'day',
+    bg: '#fff',
+    border: '#ddd',
+    text: 'Switch to Night Mode'
+  }
+};
 
 const moveTimeout = 50;
 
@@ -38,7 +51,8 @@ const styleClasses = {
   rsRight: rangeSelector + '__right',
   rsRightBar: rangeSelector + '__right-bar',
   checkAxes: 'check-axes',
-  checkedLabel: 'checked-label'
+  checkedLabel: 'checked-label',
+  modeSwitcher: 'mode-switcher'
 };
 
 class Chart {
@@ -51,6 +65,9 @@ class Chart {
     this.axes = [];
     this.time = [];
     this.moveElem = null;
+    this.state = {
+      mode: modes.day
+    };
 
     this.init();
     this.createElements();
@@ -75,7 +92,7 @@ class Chart {
     const leftWidth = this.options.width - centerWidth;
 
     this.root.style.width = widthPx;
-    this.root.style.height = this.options.height + 'px';
+    // this.root.style.height = this.options.height + 'px';
 
     const div = Chart.createElement(this.root, 'div', styleClasses.mainChartWrap);
 
@@ -118,6 +135,14 @@ class Chart {
     this.rsRight.style.height = rangeHeightPx;
 
     this.createCheckboxAxes();
+
+    const divSwitcher = Chart.createElement(this.root, 'div');
+    divSwitcher.style.width = '250px';
+    divSwitcher.style.margin = '0 auto';
+
+    this.modeSwitcher = Chart.createElement(divSwitcher, 'span', styleClasses.modeSwitcher);
+    this.modeSwitcher.innerText = this.state.mode.text;
+    this.modeSwitcher.setAttribute('data-mode', 'night');
   }
 
   createCheckboxAxes() {
@@ -149,7 +174,7 @@ class Chart {
     input.addEventListener('click', (e) => {
       checkedLabel.style.backgroundColor = e.target.checked
         ? axis.color
-        : colors.white;
+        : this.state.mode.bg;
 
       this.axes.some((a) => {
         const found = a.id === axis.id;
@@ -223,6 +248,19 @@ class Chart {
     this.rsCenter.addEventListener('mousedown', this.downRangeCenter.bind(this));
     this.rSelector.addEventListener('mousemove', this.mouseMove.bind(this));
     document.addEventListener('mouseup', this.mouseUp.bind(this));
+    this.modeSwitcher.addEventListener('click', this.switchMode.bind(this));
+  }
+
+  switchMode() {
+    const dataMode = this.modeSwitcher.getAttribute('data-mode');
+    const newMode = modes[dataMode];
+    if (newMode) {
+      this.modeSwitcher.innerText = newMode.text;
+      this.modeSwitcher.setAttribute('data-mode', this.state.mode.id);
+      this.root.style.backgroundColor = newMode.bg;
+
+      this.state.mode = newMode;
+    }
   }
 
   showTooltip(e) {
