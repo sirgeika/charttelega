@@ -416,8 +416,23 @@ class Chart {
   }
 
   drawTooltip(ctx, x) {
+    const overlay = function(x1, y1, w, h) {
+      return this.x >= x1 && this.x <= (x1 + w) &&
+        this.y >= y1 && this.y <= (y1 + h);
+    };
+
     const height = ctx.canvas.height;
     const width = ctx.canvas.width;
+
+    const fontValue = 'bold 18px verdana, sans-serif';
+    const fontName = '14px verdana, sans-serif';
+    const txtPadding = 10;
+    const fontDate = 'bold 16px verdana, sans-serif';
+
+    let textWidth = {
+      val: 0,
+      name: 0
+    };
 
     // line, circles
     const endAngel = (Math.PI/180) * 360;
@@ -427,37 +442,85 @@ class Chart {
 
     const ratioX = width / parts;
     const ratioY = height / this.maxY(this.start, this.finish);
+    const xPoint = ind * ratioX;
 
     ctx.beginPath();
-    ctx.moveTo(ind * ratioX, 0);
-    ctx.lineTo(ind * ratioX, height);
+    ctx.moveTo(xPoint, 0);
+    ctx.lineTo(xPoint, height);
     ctx.strokeStyle = colors.axes;
     ctx.stroke();
 
     this.axes.forEach((axis) => {
       if (axis.draw) {
+        const yPoint = height - axis.dots[this.start + ind] * ratioY;
+
         ctx.beginPath();
-        ctx.arc(ind * ratioX, height - axis.dots[this.start + ind] * ratioY,
-          5, 0, endAngel);
+        ctx.arc(xPoint, yPoint,5, 0, endAngel);
         ctx.strokeStyle = axis.color;
         ctx.fillStyle = colors.white;
         ctx.lineWidth = 2;
         ctx.fill();
         ctx.stroke();
+
+        ctx.font = fontValue;
+        const txtValue = ctx.measureText(axis.dots[this.start + ind]);
+
+        ctx.font = fontName;
+        const txtName = ctx.measureText(axis.name);
+
+        textWidth[axis.id] = txtValue.width > txtName.width
+          ? txtValue
+          : txtName;
+
+        textWidth[axis.id].x = xPoint;
+        textWidth[axis.id].y = yPoint;
+        textWidth[axis.id].overlay = overlay.bind(textWidth[axis.id]);
+
+        textWidth.val += textWidth[axis.id].width + txtPadding;
+        textWidth.name += textWidth[axis.id].width + txtPadding;
       }
     });
 
+    const dateStr = this.time[this.start + ind].date.toLocaleString('en', {
+      weekday: 'short',
+      month: 'short',
+      day: '2-digit'
+    });
+
+    ctx.font = fontDate;
+    const textDate = ctx.measureText(dateStr);
+
     // tooltip
-    const rectWidth = 100;
+    const rectWidth = Math.max(textDate.width, textWidth.name, textWidth.val) + 40;
     const rectHeight = 100;
     const cornerRadius = 20;
-    let rectX = ind * ratioX;
+    let rectX = xPoint;
     const rectY = 0;
+    let shiftLeft = false;
 
-    rectX = Math.max(0, rectX + (cornerRadius / 2) - rectWidth / 3);
-    if (rectX > width) {
-
+    rectX = Math.max(0, rectX - rectWidth / 3);
+    if ((rectX + rectWidth) > width) {
+      rectX = width - rectWidth;
+      shiftLeft = true;
+    } else if (rectX <= 0) {
+      rectX = txtPadding;
     }
+
+    this.axes.some((axis) => {
+      if (axis.draw) {
+        if (textWidth[axis.id].overlay(rectX, rectY, rectWidth, rectHeight)) {
+          if (shiftLeft) {
+            rectX = xPoint - rectWidth - txtPadding;
+          } else {
+            rectX = xPoint + txtPadding * 2;
+            if ((rectX + rectWidth) > width) {
+              rectX = xPoint - rectWidth - txtPadding;
+            }
+          }
+          return true;
+        }
+      }
+    });
 
     ctx.save();
 
@@ -492,19 +555,23 @@ class Chart {
 
     ctx.beginPath();
     ctx.fillStyle = '#595959';
-    ctx.font = 'bold 16px verdana, sans-serif';
-    ctx.fillText(this.time[ind].date.toLocaleString('en', {
-      weekday: 'short',
-      month: 'short',
-      day: '2-digit'
-    }), rectX + 10, 25, );
+    ctx.font = fontDate;
+    ctx.fillText(dateStr, rectX + 10, 25);
+
+    let prevText = 0;
 
     this.axes.forEach((axis, index) => {
       if (axis.draw) {
         ctx.beginPath();
         ctx.fillStyle = axis.color;
-        ctx.font = 'bold 18px verdana, sans-serif';
-        ctx.fillText(axis.dots[this.start + ind], rectX + 30  * (index + 1), 50);
+        ctx.font = fontValue;
+        ctx.fillText(axis.dots[this.start + ind], rectX + txtPadding + prevText, 60);
+
+        ctx.beginPath();
+        ctx.font = fontName;
+        ctx.fillText(axis.name, rectX + txtPadding + prevText, 80);
+
+        prevText += txtPadding + textWidth[axis.id].width;
       }
     });
 
@@ -601,15 +668,14 @@ const loadData = async function(src) {
 
 const drawChart = async function(src) {
   const data = await loadData(src);
-  const chart = new Chart(document.querySelector('#chart1'),
-    data[0], {
-    drawPart: 31
-  });
-  chart.draw();
 
-  // const chart2 = new Chart(document.querySelector('#chart2'),
-  //   data[4], {
-  //     drawPart: 31
-  //   });
-  // chart2.draw();
+  data.forEach((d, ind) => {
+    const elem = document.querySelector('#chart' + (ind + 1));
+    if (elem) {
+      const chart = new Chart(elem, d, {
+        drawPart: 25
+      });
+      chart.draw();
+    }
+  });
 };
