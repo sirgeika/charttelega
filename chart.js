@@ -484,7 +484,7 @@ class Chart {
     this.finish = Math.ceil(rightPos / this.options.width * this.time.length);
   }
 
-  drawTooltip(ctx, x) {
+  drawTooltip(ctx, x, y) {
     const overlay = function(x1, y1, w, h) {
       return this.x >= x1 && this.x <= (x1 + w) &&
         this.y >= y1 && this.y <= (y1 + h);
@@ -562,10 +562,10 @@ class Chart {
     const rectHeight = 100;
     const cornerRadius = 20;
     let rectX = xPoint;
-    const rectY = 0;
+    let rectY = 0;
     let shiftLeft = false;
 
-    rectX = Math.max(0, rectX - rectWidth / 3);
+    rectX = rectX - rectWidth / 3;
     if ((rectX + rectWidth) > width) {
       rectX = width - rectWidth;
       shiftLeft = true;
@@ -588,6 +588,11 @@ class Chart {
         }
       }
     });
+
+    if (rectX < 0) {
+      rectX = txtPadding;
+      rectY = Math.min(height - rectHeight, y);
+    }
 
     ctx.save();
 
@@ -623,7 +628,7 @@ class Chart {
     ctx.beginPath();
     ctx.fillStyle = this.state.mode.tooltipTxt;
     ctx.font = fontDate;
-    ctx.fillText(dateStr, rectX + 10, 25);
+    ctx.fillText(dateStr, rectX + 10, rectY + 25);
 
     let prevText = 0;
 
@@ -632,11 +637,11 @@ class Chart {
         ctx.beginPath();
         ctx.fillStyle = axis.color;
         ctx.font = fontValue;
-        ctx.fillText(axis.dots[this.start + ind], rectX + txtPadding + prevText, 60);
+        ctx.fillText(axis.dots[this.start + ind], rectX + txtPadding + prevText, rectY +60);
 
         ctx.beginPath();
         ctx.font = fontName;
-        ctx.fillText(axis.name, rectX + txtPadding + prevText, 80);
+        ctx.fillText(axis.name, rectX + txtPadding + prevText, rectY + 80);
 
         prevText += txtPadding + textWidth[axis.id].width;
       }
