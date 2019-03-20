@@ -11,24 +11,30 @@ const defaultOptions = {
   drawPart: 20
 };
 
-const colors = {
-  white: '#fff',
-  axes: '#ECF0F1',
-  text: '#70797f'
-};
-
 const modes = {
   night: {
     id: 'night',
     bg: '#2a3240',
-    border: '',
-    text: 'Switch to Day Mode'
+    border: '#394758',
+    text: '#fff',
+    range: '#44566b',
+    axes: '#44566b',
+    axesTxt: '#70797f',
+    tooltipTxt: '#fff',
+    tooltipShadow: '#262f3a',
+    title: 'Switch to Day Mode'
   },
   day: {
     id: 'day',
     bg: '#fff',
+    text: '#000',
     border: '#ddd',
-    text: 'Switch to Night Mode'
+    range: '#ecf0f1',
+    axes: '#ecf0f1',
+    axesTxt: '#70797f',
+    tooltipTxt: '#595959',
+    tooltipShadow: '#dadada',
+    title: 'Switch to Night Mode'
   }
 };
 
@@ -73,6 +79,8 @@ class Chart {
     this.createElements();
     this.initDraw();
     this.bindEvents();
+
+    this.switchMode();
   }
 
   static createElement(root, tag, className) {
@@ -92,7 +100,6 @@ class Chart {
     const leftWidth = this.options.width - centerWidth;
 
     this.root.style.width = widthPx;
-    // this.root.style.height = this.options.height + 'px';
 
     const div = Chart.createElement(this.root, 'div', styleClasses.mainChartWrap);
 
@@ -141,7 +148,7 @@ class Chart {
     divSwitcher.style.margin = '0 auto';
 
     this.modeSwitcher = Chart.createElement(divSwitcher, 'span', styleClasses.modeSwitcher);
-    this.modeSwitcher.innerText = this.state.mode.text;
+    this.modeSwitcher.innerText = this.state.mode.title;
     this.modeSwitcher.setAttribute('data-mode', 'night');
   }
 
@@ -248,17 +255,41 @@ class Chart {
     this.rsCenter.addEventListener('mousedown', this.downRangeCenter.bind(this));
     this.rSelector.addEventListener('mousemove', this.mouseMove.bind(this));
     document.addEventListener('mouseup', this.mouseUp.bind(this));
-    this.modeSwitcher.addEventListener('click', this.switchMode.bind(this));
+    this.modeSwitcher.addEventListener('click', this.onSwitchMode.bind(this));
   }
 
-  switchMode() {
+  onSwitchMode() {
     const dataMode = this.modeSwitcher.getAttribute('data-mode');
     const newMode = modes[dataMode];
     if (newMode) {
-      this.modeSwitcher.innerText = newMode.text;
       this.modeSwitcher.setAttribute('data-mode', this.state.mode.id);
-      this.root.style.backgroundColor = newMode.bg;
+      this.switchMode(newMode);
+      this.drawChart(this.mainCtx, true, this.start, this.finish);
+    }
+  }
 
+  switchMode(newMode) {
+    newMode = newMode || this.state.mode;
+
+    this.modeSwitcher.innerText = newMode.title;
+    this.root.style.backgroundColor = newMode.bg;
+
+    const divAxes = this.root.querySelectorAll('.' + styleClasses.checkAxes + ' div');
+    divAxes.forEach(el => {
+      el.style.borderColor = newMode.border;
+      const lbl = el.querySelector('label');
+      if (lbl) {
+        lbl.style.color = newMode.text;
+      }
+    });
+
+    this.rsLeftBar.style.backgroundColor = newMode.range;
+    this.rsRightBar.style.backgroundColor = newMode.range;
+    this.rsCenter.style.borderColor = newMode.range;
+    this.rsRight.style.backgroundColor = newMode.range;
+    this.rsLeft.style.backgroundColor = newMode.range;
+
+    if (newMode !== this.state.mode) {
       this.state.mode = newMode;
     }
   }
@@ -472,7 +503,6 @@ class Chart {
       name: 0
     };
 
-    // line, circles
     const endAngel = (Math.PI/180) * 360;
     const rel = x / width;
     const parts = this.finish - this.start - 1;
@@ -485,7 +515,7 @@ class Chart {
     ctx.beginPath();
     ctx.moveTo(xPoint, 0);
     ctx.lineTo(xPoint, height);
-    ctx.strokeStyle = colors.axes;
+    ctx.strokeStyle = this.state.mode.axes;
     ctx.stroke();
 
     this.axes.forEach((axis) => {
@@ -495,7 +525,7 @@ class Chart {
         ctx.beginPath();
         ctx.arc(xPoint, yPoint,5, 0, endAngel);
         ctx.strokeStyle = axis.color;
-        ctx.fillStyle = colors.white;
+        ctx.fillStyle = this.state.mode.bg;
         ctx.lineWidth = 2;
         ctx.fill();
         ctx.stroke();
@@ -528,7 +558,6 @@ class Chart {
     ctx.font = fontDate;
     const textDate = ctx.measureText(dateStr);
 
-    // tooltip
     const rectWidth = Math.max(textDate.width, textWidth.name, textWidth.val) + 40;
     const rectHeight = 100;
     const cornerRadius = 20;
@@ -565,8 +594,8 @@ class Chart {
     ctx.beginPath();
     ctx.lineJoin = "round";
     ctx.lineWidth = 10;
-    ctx.fillStyle = colors.white;
-    ctx.strokeStyle = '#dadada';
+    ctx.fillStyle = this.state.mode.bg;
+    ctx.strokeStyle = this.state.mode.tooltipShadow;
 
     ctx.strokeRect(
       rectX,
@@ -583,7 +612,7 @@ class Chart {
     );
 
     ctx.beginPath();
-    ctx.strokeStyle = colors.white;
+    ctx.strokeStyle = this.state.mode.bg;
     ctx.strokeRect(
       rectX + 1,
       rectY + (cornerRadius / 2) + 1,
@@ -592,7 +621,7 @@ class Chart {
     );
 
     ctx.beginPath();
-    ctx.fillStyle = '#595959';
+    ctx.fillStyle = this.state.mode.tooltipTxt;
     ctx.font = fontDate;
     ctx.fillText(dateStr, rectX + 10, 25);
 
@@ -662,16 +691,14 @@ class Chart {
     const partCount = 5;
     const height = ctx.canvas.height;
 
-    // dates
     ctx.beginPath();
     ctx.moveTo(0, 1);
     ctx.lineTo(ctx.canvas.width, 1);
 
-    ctx.fillStyle = colors.text;
+    ctx.fillStyle = this.state.mode.axesTxt;
     ctx.font = '14px verdana, sans-serif';
     ctx.fillText('0', 5, 20);
 
-    //y
     let part = Math.round(maxY / partCount);
     const exp = part.toString(10).length - 1;
     const rank = Math.pow(10, exp);
@@ -693,7 +720,7 @@ class Chart {
       ctx.restore();
     }
 
-    ctx.strokeStyle = colors.axes;
+    ctx.strokeStyle = this.state.mode.axes;
     ctx.lineWidth = 2;
     ctx.stroke();
   }
