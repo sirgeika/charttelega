@@ -186,8 +186,11 @@ class Chart {
   createCheckboxAxes() {
     const boxArea = Chart.createElement(this.root, 'div', styleClasses.checkAxes);
 
-    this.axes.forEach((axis) => {
-      this.createCheckbox(boxArea, axis);
+    this.checkboxAses = this.axes.map((axis) => {
+      return {
+        axis: axis,
+        elem: this.createCheckbox(boxArea, axis)
+      };
     });
   }
 
@@ -224,6 +227,7 @@ class Chart {
       });
       this.drawSmooth();
     });
+    return checkedLabel;
   }
 
   init() {
@@ -320,6 +324,12 @@ class Chart {
     this.rsCenter.style.borderColor = newMode.range;
     this.rsRight.style.backgroundColor = newMode.range;
     this.rsLeft.style.backgroundColor = newMode.range;
+
+    this.checkboxAses.forEach(d => {
+      if (!d.axis.draw) {
+        d.elem.style.backgroundColor = newMode.bg;
+      }
+    });
 
     if (newMode !== this.state.mode) {
       this.state.mode = newMode;
