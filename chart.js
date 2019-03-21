@@ -61,6 +61,36 @@ const styleClasses = {
   modeSwitcher: 'mode-switcher'
 };
 
+const computeTickSize = function(min, max, noTicks) {
+  const delta = (max - min) / noTicks,
+    dec = -Math.floor(Math.log(delta) / Math.LN10);
+
+  let magn = Math.pow(10, -dec),
+    norm = delta / magn,
+    size;
+
+  if (norm < 1.5) {
+    size = 1;
+  } else if (norm < 3) {
+    size = 2;
+    if (norm > 2.25) {
+      size = 2.5;
+    }
+  } else if (norm < 7.5) {
+    size = 5;
+  } else {
+    size = 10;
+  }
+
+  size *= magn;
+  return size;
+};
+
+const getAxisTickSize = function(min, max, range) {
+  const noTicks = 0.3 * Math.sqrt(range);
+  return computeTickSize(min, max, noTicks);
+};
+
 class Chart {
   constructor(root, data, options) {
     this.root = root;
@@ -71,8 +101,11 @@ class Chart {
     this.axes = [];
     this.time = [];
     this.moveElem = null;
+
     this.state = {
-      mode: modes.day
+      mode: modes.day,
+      maxY: 0,
+      axesChecked: false
     };
 
     this.init();
@@ -103,7 +136,6 @@ class Chart {
 
     const div = Chart.createElement(this.root, 'div', styleClasses.mainChartWrap);
 
-    // main chart
     this.mainCanvas = Chart.createElement(div,'canvas', styleClasses.mainChart);
     this.mainCanvas.setAttribute('width', widthPx);
     this.mainCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
@@ -114,7 +146,6 @@ class Chart {
 
     const area = Chart.createElement(this.root, 'div', styleClasses.rangeChartArea);
 
-    // range chart
     this.rangeCanvas = Chart.createElement(area, 'canvas', styleClasses.rangeChart);
     this.rangeCanvas.setAttribute('width', widthPx);
     this.rangeCanvas.setAttribute('height', rangeCanvasHeightPx);
@@ -187,10 +218,11 @@ class Chart {
         const found = a.id === axis.id;
         if (found) {
           a.draw = !a.draw;
+          this.state.axesChecked = a.id;
         }
         return found;
       });
-      this.draw();
+      this.drawSmooth();
     });
   }
 
@@ -477,6 +509,12 @@ class Chart {
     return max;
   }
 
+  getAxis(id) {
+    return this.axes.find(axis => {
+      return axis.id === id;
+    });
+  }
+
   calcRangePosition() {
     const leftPos = this.rsLeftBar.offsetLeft;
     const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
@@ -652,8 +690,8 @@ class Chart {
 
   draw() {
     this.calcRangePosition();
-    this.drawChart(this.mainCtx, true, this.start, this.finish);
-    this.drawChart(this.rangeCtx);
+    this.mainMaxY = this.drawChart(this.mainCtx, true, this.start, this.finish);
+    this.rangeMaxY = this.drawChart(this.rangeCtx);
   }
 
   redrawChart() {
@@ -690,10 +728,92 @@ class Chart {
         ctx.stroke();
       }
     });
+
+    return maxY;
+  }
+
+  drawSmooth() {
+
+    const newMainMax = this.maxY(this.start, this.finish);
+    const newRangeMax = this.maxY();
+
+    const ratio = {
+      newMain: this.mainCtx.canvas.height / newMainMax,
+      oldMain: this.mainCtx.canvas.height / this.mainMaxY,
+      newRange: this.rangeCtx.canvas.height / newRangeMax,
+      oldRange: this.rangeCtx.canvas.height / this.rangeMaxY
+    };
+
+    const mainDiff = (ratio.newMain - ratio.oldMain) / 50;
+    ratio.oldMain += mainDiff;
+
+    const rangeDiff = (ratio.newRange - ratio.oldRange) / 50;
+    ratio.oldRange += rangeDiff;
+
+    const checked = this.getAxis(this.state.axesChecked);
+    let opacity = checked.draw ? 0 : 1;
+    let opacityStep = (checked.draw ? 1 : -1) * 2 /100;
+
+    const step = () => {
+      this.drawChartSmooth(this.mainCtx, ratio.oldMain, opacity,
+        true, this.start, this.finish);
+      this.drawChartSmooth(this.rangeCtx, ratio.oldRange, opacity);
+
+      ratio.oldMain += mainDiff;
+      ratio.oldRange += rangeDiff;
+      opacity += opacityStep;
+
+      if (
+        mainDiff > 0 && ratio.oldMain < ratio.newMain ||
+        mainDiff < 0 && ratio.oldMain > ratio.newMain ||
+        (mainDiff === 0 && opacity > 0 && opacity < 1)
+      ) {
+        window.requestAnimationFrame(step);
+      } else {
+        this.state.axesChecked = false;
+        this.mainMaxY = newMainMax;
+        this.rangeMaxY = newRangeMax;
+        this.draw();
+      }
+    };
+    window.requestAnimationFrame(step);
+  }
+
+  drawChartSmooth(ctx, ratioY, opacity, displayLabels, start=0, finish) {
+    finish = finish || this.time.length;
+
+    const ratioX = ctx.canvas.width / (finish - start - 1);
+
+    Chart.clrScr(ctx);
+
+    // if (displayLabels) {
+    //   this.drawAxesLabels(ctx, maxY, ratioX, ratioY);
+    // }
+
+    this.axes.forEach(y => {
+      if (y.draw || y.id === this.state.axesChecked) {
+        ctx.beginPath();
+        ctx.moveTo(0, y.dots[start] * ratioY);
+
+        for(let i = start; i < finish; i++) {
+          ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
+        }
+
+        if (y.id === this.state.axesChecked) {
+          ctx.globalAlpha = opacity;
+        }
+
+        ctx.strokeStyle = y.color;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        ctx.globalAlpha = 1;
+      }
+    });
   }
 
   drawAxesLabels(ctx, maxY, ratioX, ratioY) {
-    const partCount = 5;
     const height = ctx.canvas.height;
 
     ctx.beginPath();
@@ -704,18 +824,11 @@ class Chart {
     ctx.font = '14px verdana, sans-serif';
     ctx.fillText('0', 5, 20);
 
-    let part = Math.round(maxY / partCount);
-    const exp = part.toString(10).length - 1;
-    const rank = Math.pow(10, exp);
+    let prev, i = 1;
+    const tick = getAxisTickSize(0, maxY, height);
 
-    let roundPart = Math.round(part / rank) * rank;
-
-    if (maxY - roundPart * partCount <= roundPart) {
-      part = roundPart;
-    }
-
-    for (let i = 1; i <= partCount; i++) {
-      const y = part * i;
+    do {
+      const y = tick * i;
       ctx.moveTo(0, y * ratioY);
       ctx.lineTo(ctx.canvas.width, y * ratioY );
 
@@ -723,8 +836,11 @@ class Chart {
       ctx.resetTransform();
       ctx.fillText(y, 5, height - (y * ratioY) - 10);
       ctx.restore();
-    }
 
+      prev = y;
+      i++;
+    } while (prev <= maxY);
+    
     ctx.strokeStyle = this.state.mode.axes;
     ctx.lineWidth = 2;
     ctx.stroke();
