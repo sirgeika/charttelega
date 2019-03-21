@@ -706,7 +706,7 @@ class Chart {
 
   redrawChart() {
     this.calcRangePosition();
-    this.drawChart(this.mainCtx, true, this.start, this.finish);
+    this.mainMaxY = this.drawChart(this.mainCtx, true, this.start, this.finish);
   }
 
   drawChart(ctx, displayLabels, start=0, finish) {
@@ -843,11 +843,12 @@ class Chart {
 
     do {
       const y = tick * i;
-      ctx.moveTo(0, y * ratioY);
-      ctx.lineTo(ctx.canvas.width, y * ratioY );
-
       const yTxt = height - (y * ratioY) - 10;
+
       if (yTxt - 15 > 0) {
+        ctx.moveTo(0, y * ratioY);
+        ctx.lineTo(ctx.canvas.width, y * ratioY );
+
         ctx.save();
         ctx.resetTransform();
         ctx.fillText(y, 5, yTxt);
