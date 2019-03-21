@@ -734,34 +734,38 @@ class Chart {
 
   drawSmooth() {
 
+    const frames = 50;
     const newMainMax = this.maxY(this.start, this.finish);
     const newRangeMax = this.maxY();
 
     const ratio = {
       newMain: this.mainCtx.canvas.height / newMainMax,
       oldMain: this.mainCtx.canvas.height / this.mainMaxY,
+      incMaxY: this.mainMaxY,
+      stepMaxY: (newMainMax - this.mainMaxY) / frames,
       newRange: this.rangeCtx.canvas.height / newRangeMax,
       oldRange: this.rangeCtx.canvas.height / this.rangeMaxY
     };
 
-    const mainDiff = (ratio.newMain - ratio.oldMain) / 50;
+    const mainDiff = (ratio.newMain - ratio.oldMain) / frames;
     ratio.oldMain += mainDiff;
 
-    const rangeDiff = (ratio.newRange - ratio.oldRange) / 50;
+    const rangeDiff = (ratio.newRange - ratio.oldRange) / frames;
     ratio.oldRange += rangeDiff;
 
     const checked = this.getAxis(this.state.axesChecked);
     let opacity = checked.draw ? 0 : 1;
-    let opacityStep = (checked.draw ? 1 : -1) * 2 /100;
+    let opacityStep = (checked.draw ? 1 : -1) * 2 / 100;
 
     const step = () => {
       this.drawChartSmooth(this.mainCtx, ratio.oldMain, opacity,
-        true, this.start, this.finish);
+        ratio.incMaxY, this.start, this.finish);
       this.drawChartSmooth(this.rangeCtx, ratio.oldRange, opacity);
 
       ratio.oldMain += mainDiff;
       ratio.oldRange += rangeDiff;
       opacity += opacityStep;
+      ratio.incMaxY += ratio.stepMaxY;
 
       if (
         mainDiff > 0 && ratio.oldMain < ratio.newMain ||
@@ -779,16 +783,16 @@ class Chart {
     window.requestAnimationFrame(step);
   }
 
-  drawChartSmooth(ctx, ratioY, opacity, displayLabels, start=0, finish) {
+  drawChartSmooth(ctx, ratioY, opacity, maxY, start=0, finish) {
     finish = finish || this.time.length;
 
     const ratioX = ctx.canvas.width / (finish - start - 1);
 
     Chart.clrScr(ctx);
 
-    // if (displayLabels) {
-    //   this.drawAxesLabels(ctx, maxY, ratioX, ratioY);
-    // }
+    if (maxY) {
+      this.drawAxesLabels(ctx, maxY, ratioX, ratioY);
+    }
 
     this.axes.forEach(y => {
       if (y.draw || y.id === this.state.axesChecked) {
@@ -832,10 +836,13 @@ class Chart {
       ctx.moveTo(0, y * ratioY);
       ctx.lineTo(ctx.canvas.width, y * ratioY );
 
-      ctx.save();
-      ctx.resetTransform();
-      ctx.fillText(y, 5, height - (y * ratioY) - 10);
-      ctx.restore();
+      const yTxt = height - (y * ratioY) - 10;
+      if (yTxt - 15 > 0) {
+        ctx.save();
+        ctx.resetTransform();
+        ctx.fillText(y, 5, yTxt);
+        ctx.restore();
+      }
 
       prev = y;
       i++;
