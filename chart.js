@@ -134,6 +134,9 @@ class Chart {
 
     this.root.style.width = widthPx;
 
+    this.title = Chart.createElement(this.root, 'h2');
+    this.title.innerText = this.options.title;
+
     const div = Chart.createElement(this.root, 'div', styleClasses.mainChartWrap);
 
     this.mainCanvas = Chart.createElement(div,'canvas', styleClasses.mainChart);
@@ -324,6 +327,7 @@ class Chart {
     this.rsCenter.style.borderColor = newMode.range;
     this.rsRight.style.backgroundColor = newMode.range;
     this.rsLeft.style.backgroundColor = newMode.range;
+    this.title.style.color = newMode.text;
 
     this.checkboxAses.forEach(d => {
       if (!d.axis.draw) {
@@ -877,7 +881,8 @@ const drawChart = async function(src) {
     const elem = document.querySelector('#chart' + (ind + 1));
     if (elem) {
       const chart = new Chart(elem, d, {
-        drawPart: 25
+        drawPart: 25,
+        title: 'Followers'
       });
       chart.draw();
     }

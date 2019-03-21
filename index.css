@@ -1,7 +1,15 @@
+body {
+  font-family: "verdana", sans-serif;
+}
+
 .chart {
   padding: 10px;
   margin: 0 auto 100px;
   border-bottom: 1px solid #ddd;
+}
+
+.chart h2 {
+  margin: 0 0 10px 0;
 }
 
 .main-chart-wrap {
@@ -74,7 +82,6 @@
 .check-axes label {
   position: relative;
   cursor: pointer;
-  font-family: "verdana", sans-serif;
 }
 
 .check-axes .checked-label {
@@ -114,7 +121,6 @@
   text-align: center;
   margin-top: 40px;
   font-size: 20px;
-  font-family: "verdana", sans-serif;
   color: #4aa2ed;
   cursor: pointer;
 }
