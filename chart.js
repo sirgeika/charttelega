@@ -39,6 +39,8 @@ const modes = {
 };
 
 const moveTimeout = 50;
+const frames = 50;
+const MIN_INF = Number.NEGATIVE_INFINITY;
 
 const noop = function() {};
 
@@ -61,7 +63,11 @@ const styleClasses = {
   modeSwitcher: 'mode-switcher'
 };
 
-const computeTickSize = function(min, max, noTicks) {
+let clrScr = function(ctx) {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+};
+
+let computeTickSize = function(min, max, noTicks) {
   const delta = (max - min) / noTicks,
     dec = -Math.floor(Math.log(delta) / Math.LN10);
 
@@ -86,9 +92,438 @@ const computeTickSize = function(min, max, noTicks) {
   return size;
 };
 
-const getAxisTickSize = function(min, max, range) {
+let getAxisTickSize = function(min, max, range) {
   const noTicks = 0.3 * Math.sqrt(range);
   return computeTickSize(min, max, noTicks);
+};
+
+let drawAxesLabels = function(ctx, colors, maxY, ratioX, ratioY) {
+  const height = ctx.canvas.height;
+
+  ctx.beginPath();
+  ctx.moveTo(0, 1);
+  ctx.lineTo(ctx.canvas.width, 1);
+
+  ctx.fillStyle = colors.axesTxt;
+  ctx.font = '14px verdana, sans-serif';
+  ctx.fillText('0', 5, 20);
+
+  let prev, i = 1;
+  const tick = getAxisTickSize(0, maxY, height);
+
+  do {
+    const y = tick * i;
+    const yTxt = height - (y * ratioY) - 10;
+
+    if (yTxt - 15 > 0) {
+      ctx.moveTo(0, y * ratioY);
+      ctx.lineTo(ctx.canvas.width, y * ratioY );
+
+      ctx.save();
+      ctx.resetTransform();
+      ctx.fillText(y, 5, yTxt);
+      ctx.restore();
+    }
+
+    prev = y;
+    i++;
+  } while (prev <= maxY);
+
+  ctx.strokeStyle = colors.axes;
+  ctx.lineWidth = 2;
+  ctx.stroke();
+};
+
+let Axis = function(axis) {
+  let obj = Object.assign(Object.create(Axis.prototype), axis);
+  obj.max = MIN_INF;
+  obj.indexMax = -1;
+  obj.start = -1;
+  obj.finish = -1;
+  return obj;
+};
+
+Axis.prototype = {
+  getStart() {
+    return (this.start === -1 ? 0 : this.start);
+  },
+  getFinish() {
+    return this.finish === -1 ? this.dots.length : this.finish;
+  },
+  maxY: function(start, finish) {
+    start = start || this.getStart();
+    finish = finish || this.getFinish();
+
+    if (
+      start === this.start &&
+      finish === this.finish &&
+      this.max !== MIN_INF
+    ) {
+      return this.max;
+    }
+
+    if (
+      (this.start <= start && this.finish >= finish) &&
+      (this.indexMax >= start && this.indexMax < finish) &&
+      this.max !== MIN_INF
+    ) {
+      this.updateRange(start, finish);
+      return this.max;
+    }
+
+    this.max = MIN_INF;
+    for(let i = start; i < finish; i++) {
+      if (this.dots[i] > this.max) {
+        this.max = this.dots[i];
+        this.indexMax = i;
+      }
+    }
+    this.updateRange(start, finish);
+    return this.max;
+  },
+  updateRange: function(start, finish) {
+    this.start = start;
+    this.finish = finish;
+  }
+};
+
+let axes = function(axes, x) {
+  const y = axes.map(axis => new Axis(axis));
+
+  return {
+    y: y,
+    x: x,
+    maxY: function(start, finish) {
+      let max = MIN_INF;
+      this.y.forEach(axis => {
+        if (axis.draw) {
+          let m = axis.maxY(start, finish);
+          if (m > max) {
+            max = m;
+          }
+        }
+      });
+      return max;
+    },
+    checkAxes: function(axData) {
+      this.y.some(a => {
+        if (a.id === axData.id) {
+          a.draw = axData.draw;
+          return true;
+        }
+      });
+    },
+    clearMaxY: function() {
+      this.y.forEach(axis => {
+        axis.max = MIN_INF;
+      });
+    },
+    getAxis(id) {
+      return this.y.find(axis => {
+        return axis.id === id;
+      });
+    }
+  };
+};
+
+let Tooltip = function(elem, options) {
+  this.ctx = elem.getContext('2d');
+  this.options = {...options};
+};
+
+Tooltip.prototype = {
+  draw: function(x, y, rangePos) {
+    const overlay = function(x1, y1, w, h) {
+      return this.x >= x1 && this.x <= (x1 + w) &&
+        this.y >= y1 && this.y <= (y1 + h);
+    };
+
+    this.hide();
+
+    let ctx = this.ctx;
+    let { start, finish } = rangePos;
+
+    const height = ctx.canvas.height;
+    const width = ctx.canvas.width;
+
+    const fontValue = 'bold 18px verdana, sans-serif';
+    const fontName = '14px verdana, sans-serif';
+    const txtPadding = 10;
+    const fontDate = 'bold 16px verdana, sans-serif';
+
+    let textWidth = {
+      val: 0,
+      name: 0
+    };
+
+    const endAngel = (Math.PI/180) * 360;
+    const rel = x / width;
+    const parts = finish - start - 1;
+    const ind  = Math.round(parts * rel);
+
+    const ratioX = width / parts;
+    const ratioY = height / this.options.axes.maxY(start, finish);
+    const xPoint = ind * ratioX;
+
+    ctx.beginPath();
+    ctx.moveTo(xPoint, 0);
+    ctx.lineTo(xPoint, height);
+    ctx.strokeStyle = this.options.mode.axes;
+    ctx.stroke();
+
+    this.options.axes.y.forEach((axis) => {
+      if (axis.draw) {
+        const yPoint = height - axis.dots[start + ind] * ratioY;
+
+        ctx.beginPath();
+        ctx.arc(xPoint, yPoint,5, 0, endAngel);
+        ctx.strokeStyle = axis.color;
+        ctx.fillStyle = this.options.mode.bg;
+        ctx.lineWidth = 2;
+        ctx.fill();
+        ctx.stroke();
+
+        ctx.font = fontValue;
+        const txtValue = ctx.measureText(axis.dots[start + ind]);
+
+        ctx.font = fontName;
+        const txtName = ctx.measureText(axis.name);
+
+        textWidth[axis.id] = txtValue.width > txtName.width
+          ? txtValue
+          : txtName;
+
+        textWidth[axis.id].x = xPoint;
+        textWidth[axis.id].y = yPoint;
+        textWidth[axis.id].overlay = overlay.bind(textWidth[axis.id]);
+
+        textWidth.val += textWidth[axis.id].width + txtPadding;
+        textWidth.name += textWidth[axis.id].width + txtPadding;
+      }
+    });
+
+    const dateStr = this.options.axes.x[start + ind].date.toLocaleString('en', {
+      weekday: 'short',
+      month: 'short',
+      day: '2-digit'
+    });
+
+    ctx.font = fontDate;
+    const textDate = ctx.measureText(dateStr);
+
+    const rectWidth = Math.max(textDate.width, textWidth.name, textWidth.val) + 40;
+    const rectHeight = 100;
+    const cornerRadius = 20;
+    let rectX = xPoint;
+    let rectY = 0;
+    let shiftLeft = false;
+
+    rectX = rectX - rectWidth / 3;
+    if ((rectX + rectWidth) > width) {
+      rectX = width - rectWidth;
+      shiftLeft = true;
+    } else if (rectX <= 0) {
+      rectX = txtPadding;
+    }
+
+    this.options.axes.y.some((axis) => {
+      if (axis.draw) {
+        if (textWidth[axis.id].overlay(rectX, rectY, rectWidth, rectHeight)) {
+          if (shiftLeft) {
+            rectX = xPoint - rectWidth - txtPadding;
+          } else {
+            rectX = xPoint + txtPadding * 2;
+            if ((rectX + rectWidth) > width) {
+              rectX = xPoint - rectWidth - txtPadding;
+            }
+          }
+          return true;
+        }
+      }
+    });
+
+    if (rectX < 0) {
+      rectX = txtPadding;
+      rectY = Math.min(height - rectHeight, y);
+    }
+
+    ctx.save();
+
+    ctx.beginPath();
+    ctx.lineJoin = "round";
+    ctx.lineWidth = 10;
+    ctx.fillStyle = this.options.mode.bg;
+    ctx.strokeStyle = this.options.mode.tooltipShadow;
+
+    ctx.strokeRect(
+      rectX,
+      rectY + (cornerRadius / 2),
+      rectWidth - cornerRadius,
+      rectHeight - cornerRadius
+    );
+
+    ctx.fillRect(
+      rectX,
+      rectY + (cornerRadius / 2),
+      rectWidth - cornerRadius,
+      rectHeight - cornerRadius
+    );
+
+    ctx.beginPath();
+    ctx.strokeStyle = this.options.mode.bg;
+    ctx.strokeRect(
+      rectX + 1,
+      rectY + (cornerRadius / 2) + 1,
+      rectWidth - cornerRadius - 3,
+      rectHeight - cornerRadius - 3
+    );
+
+    ctx.beginPath();
+    ctx.fillStyle = this.options.mode.tooltipTxt;
+    ctx.font = fontDate;
+    ctx.fillText(dateStr, rectX + 10, rectY + 25);
+
+    let prevText = 0;
+
+    this.options.axes.y.forEach((axis, index) => {
+      if (axis.draw) {
+        ctx.beginPath();
+        ctx.fillStyle = axis.color;
+        ctx.font = fontValue;
+        ctx.fillText(axis.dots[start + ind], rectX + txtPadding + prevText, rectY +60);
+
+        ctx.beginPath();
+        ctx.font = fontName;
+        ctx.fillText(axis.name, rectX + txtPadding + prevText, rectY + 80);
+
+        prevText += txtPadding + textWidth[axis.id].width;
+      }
+    });
+
+    ctx.restore();
+  },
+  hide: function() {
+    clrScr(this.ctx);
+  },
+  setMode: function(mode) {
+    this.options.mode = mode;
+  },
+};
+
+let Plot = function(elem, options) {
+  this.elem = elem;
+  this.ctx = elem.getContext('2d');
+  this.options = options;
+  this.init();
+};
+
+Plot.prototype = {
+  init: function() {
+    this.ctx.transform(1, 0, 0, -1, 0, this.height());
+  },
+
+  height: function() {
+    return this.ctx.canvas.height;
+  },
+
+  setMode: function(mode) {
+    this.options.mode = mode;
+  },
+
+  setCheckedAxis: function(axData) {
+    this.axesChecked = axData;
+  },
+
+  getRatios: function() {
+    let oldMax = this.options.axes.maxY();
+    this.options.axes.clearMaxY();
+    this.options.axes.checkAxes(this.axesChecked);
+    let newMax = this.options.axes.maxY();
+
+    return {
+      _diff: null,
+      newVal: this.height() / newMax,
+      oldVal: this.height() / oldMax,
+      incMaxY: oldMax,
+      stepMaxY: (newMax - oldMax) / frames,
+      diff: function() {
+        if (this._diff === null) {
+          this._diff = (this.newVal - this.oldVal) / frames
+        }
+        return this._diff;
+      }
+    };
+  },
+
+  draw: function({ start=0, finish } = {}) {
+    finish = finish || this.options.axes.x.length;
+
+    const maxY = this.options.axes.maxY(start, finish);
+    const ctx = this.ctx;
+
+    const ratioX = ctx.canvas.width / (finish - start - 1);
+    const ratioY = this.height() / maxY;
+
+    this.clrScr();
+
+    if (this.options.drawLabels) {
+      drawAxesLabels(ctx, this.options.mode, maxY, ratioX, ratioY);
+    }
+
+    this.options.axes.y.forEach(y => {
+      if (y.draw) {
+        ctx.beginPath();
+        ctx.moveTo(0, y.dots[start] * ratioY);
+
+        for(let i = start; i < finish; i++) {
+          ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
+        }
+
+        ctx.strokeStyle = y.color;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+      }
+    });
+  },
+
+  drawChecked: function(ratioY, opacity, maxY, start=0, finish) {
+    finish = finish || this.options.axes.x.length;
+    const ctx = this.ctx;
+
+    const ratioX = ctx.canvas.width / (finish - start - 1);
+
+    this.clrScr();
+
+    if (maxY) {
+      drawAxesLabels(ctx, this.options.mode, maxY, ratioX, ratioY);
+    }
+
+    this.options.axes.y.forEach(y => {
+      if (y.draw || y.id === this.axesChecked.id) {
+        ctx.beginPath();
+        ctx.moveTo(0, y.dots[start] * ratioY);
+
+        for(let i = start; i < finish; i++) {
+          ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
+        }
+
+        if (y.id === this.axesChecked.id) {
+          ctx.globalAlpha = opacity;
+        }
+
+        ctx.strokeStyle = y.color;
+        ctx.lineWidth = 2;
+        ctx.lineJoin = 'round';
+        ctx.stroke();
+
+        ctx.globalAlpha = 1;
+      }
+    });
+  },
+  clrScr: function() {
+    clrScr(this.ctx);
+  }
 };
 
 class Chart {
@@ -99,7 +534,6 @@ class Chart {
 
     this.data = data;
     this.axes = [];
-    this.time = [];
     this.moveElem = null;
 
     this.state = {
@@ -109,9 +543,28 @@ class Chart {
     };
 
     this.init();
+    let xAxis = this.initTimeAxis();
     this.createElements();
     this.initDraw();
     this.bindEvents();
+
+    this.xRange = xAxis.length;
+
+    this.mainPlot = new Plot(this.mainCanvas, {
+      mode: this.state.mode,
+      drawLabels: true,
+      tooltip: true,
+      axes: axes(this.axes, xAxis)
+    });
+
+    this.rangePlot = new Plot(this.rangeCanvas, {
+      axes: axes(this.axes, xAxis)
+    });
+
+    this.tooltip = new Tooltip(this.tooltipCanvas, {
+      mode: this.state.mode,
+      axes: axes(this.axes, xAxis)
+    });
 
     this.switchMode();
   }
@@ -162,13 +615,13 @@ class Chart {
     this.rsLeft.style.width = leftWidth + 'px';
 
     this.rsLeftBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeftBar);
-    this.rsLeftBar.style.height = rangeHeightPx;
     this.rsLeftBar.style.left = leftWidth + 'px';
+    this.rsLeftBar.style.height = rangeHeightPx;
 
     this.rsCenter = Chart.createElement(this.rSelector, 'div', styleClasses.rsCenter);
     this.rsCenter.style.height = rangeHeightPx;
-    this.rsCenter.style.width = (centerWidth - this.rsLeftBar.clientWidth * 2) + 'px';
     this.rsCenter.style.left = (leftWidth + this.rsLeftBar.clientWidth) + 'px';
+    this.rsCenter.style.width = (centerWidth - this.rsLeftBar.clientWidth * 2) + 'px';
 
     this.rsRightBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsRightBar);
     this.rsRightBar.style.height = rangeHeightPx;
@@ -220,17 +673,17 @@ class Chart {
         ? axis.color
         : this.state.mode.bg;
 
-      this.axes.some((a) => {
-        const found = a.id === axis.id;
-        if (found) {
-          a.draw = !a.draw;
-          this.state.axesChecked = a.id;
-        }
-        return found;
-      });
-      this.drawSmooth();
+      axis.draw = !axis.draw;
+      this.setCheckedAxis(axis);
+      this.drawChecked();
     });
     return checkedLabel;
+  }
+
+  setCheckedAxis(axData) {
+    this.state.axesChecked = axData;
+    this.mainPlot.setCheckedAxis(axData);
+    this.rangePlot.setCheckedAxis(axData);
   }
 
   init() {
@@ -259,31 +712,26 @@ class Chart {
          draw: true
        };
     }, this);
-
-    this.initTimeAxis();
   }
 
   initDraw() {
-    this.mainCtx = this.mainCanvas.getContext('2d');
-    this.rangeCtx = this.rangeCanvas.getContext('2d');
     this.tooltipCtx = this.tooltipCanvas.getContext('2d');
-
-    this.mainCtx.transform(1, 0, 0, -1, 0, this.mainCtx.canvas.height);
-    this.rangeCtx.transform(1, 0, 0, -1, 0, this.rangeCtx.canvas.height);
   }
 
   initTimeAxis() {
-    const time = this.data.columns.find(col => {
+    let time = this.data.columns.find(col => {
       return col[0] === this.x;
     });
 
+    let normTime = [];
     for (let i = 1; i < time.length; i++) {
       const val = time[i];
-      this.time.push({
+      normTime.push({
         raw: val,
         date: new Date(val)
       });
     }
+    return normTime;
   }
 
   bindEvents() {
@@ -303,7 +751,7 @@ class Chart {
     if (newMode) {
       this.modeSwitcher.setAttribute('data-mode', this.state.mode.id);
       this.switchMode(newMode);
-      this.drawChart(this.mainCtx, true, this.start, this.finish);
+      this.mainPlot.draw(this.calcRangePosition());
     }
   }
 
@@ -337,16 +785,17 @@ class Chart {
 
     if (newMode !== this.state.mode) {
       this.state.mode = newMode;
+      this.mainPlot.setMode(this.state.mode); // todo: remove
+      this.tooltip.setMode(this.state.mode);
     }
   }
 
   showTooltip(e) {
-    Chart.clrScr(this.tooltipCtx);
-    this.drawTooltip(this.tooltipCtx, e.offsetX, e.offsetY);
+    this.tooltip.draw(e.offsetX, e.offsetY, this.calcRangePosition());
   }
 
   hideTooltip() {
-    Chart.clrScr(this.tooltipCtx)
+    this.tooltip.hide();
   }
 
   static clrScr(ctx) {
@@ -506,366 +955,59 @@ class Chart {
     this.setMoveElem(leftMove);
   }
 
-  maxY(start = 0, finish) {
-    let max = Number.NEGATIVE_INFINITY;
-
-    finish = finish || this.time.length;
-
-    this.axes.forEach(axis => {
-      if (axis.draw) {
-        for(let i = start; i < finish; i++) {
-          if (axis.dots[i] > max) {
-            max = axis.dots[i];
-          }
-        }
-      }
-    });
-    return max;
-  }
-
-  getAxis(id) {
-    return this.axes.find(axis => {
-      return axis.id === id;
-    });
-  }
-
   calcRangePosition() {
     const leftPos = this.rsLeftBar.offsetLeft;
     const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
-    this.start = Math.floor(leftPos / this.options.width * this.time.length);
-    this.finish = Math.ceil(rightPos / this.options.width * this.time.length);
-  }
-
-  drawTooltip(ctx, x, y) {
-    const overlay = function(x1, y1, w, h) {
-      return this.x >= x1 && this.x <= (x1 + w) &&
-        this.y >= y1 && this.y <= (y1 + h);
+    return {
+      start: Math.floor(leftPos / this.options.width * this.xRange),
+      finish: Math.ceil(rightPos / this.options.width * this.xRange)
     };
-
-    const height = ctx.canvas.height;
-    const width = ctx.canvas.width;
-
-    const fontValue = 'bold 18px verdana, sans-serif';
-    const fontName = '14px verdana, sans-serif';
-    const txtPadding = 10;
-    const fontDate = 'bold 16px verdana, sans-serif';
-
-    let textWidth = {
-      val: 0,
-      name: 0
-    };
-
-    const endAngel = (Math.PI/180) * 360;
-    const rel = x / width;
-    const parts = this.finish - this.start - 1;
-    const ind  = Math.round(parts * rel);
-
-    const ratioX = width / parts;
-    const ratioY = height / this.maxY(this.start, this.finish);
-    const xPoint = ind * ratioX;
-
-    ctx.beginPath();
-    ctx.moveTo(xPoint, 0);
-    ctx.lineTo(xPoint, height);
-    ctx.strokeStyle = this.state.mode.axes;
-    ctx.stroke();
-
-    this.axes.forEach((axis) => {
-      if (axis.draw) {
-        const yPoint = height - axis.dots[this.start + ind] * ratioY;
-
-        ctx.beginPath();
-        ctx.arc(xPoint, yPoint,5, 0, endAngel);
-        ctx.strokeStyle = axis.color;
-        ctx.fillStyle = this.state.mode.bg;
-        ctx.lineWidth = 2;
-        ctx.fill();
-        ctx.stroke();
-
-        ctx.font = fontValue;
-        const txtValue = ctx.measureText(axis.dots[this.start + ind]);
-
-        ctx.font = fontName;
-        const txtName = ctx.measureText(axis.name);
-
-        textWidth[axis.id] = txtValue.width > txtName.width
-          ? txtValue
-          : txtName;
-
-        textWidth[axis.id].x = xPoint;
-        textWidth[axis.id].y = yPoint;
-        textWidth[axis.id].overlay = overlay.bind(textWidth[axis.id]);
-
-        textWidth.val += textWidth[axis.id].width + txtPadding;
-        textWidth.name += textWidth[axis.id].width + txtPadding;
-      }
-    });
-
-    const dateStr = this.time[this.start + ind].date.toLocaleString('en', {
-      weekday: 'short',
-      month: 'short',
-      day: '2-digit'
-    });
-
-    ctx.font = fontDate;
-    const textDate = ctx.measureText(dateStr);
-
-    const rectWidth = Math.max(textDate.width, textWidth.name, textWidth.val) + 40;
-    const rectHeight = 100;
-    const cornerRadius = 20;
-    let rectX = xPoint;
-    let rectY = 0;
-    let shiftLeft = false;
-
-    rectX = rectX - rectWidth / 3;
-    if ((rectX + rectWidth) > width) {
-      rectX = width - rectWidth;
-      shiftLeft = true;
-    } else if (rectX <= 0) {
-      rectX = txtPadding;
-    }
-
-    this.axes.some((axis) => {
-      if (axis.draw) {
-        if (textWidth[axis.id].overlay(rectX, rectY, rectWidth, rectHeight)) {
-          if (shiftLeft) {
-            rectX = xPoint - rectWidth - txtPadding;
-          } else {
-            rectX = xPoint + txtPadding * 2;
-            if ((rectX + rectWidth) > width) {
-              rectX = xPoint - rectWidth - txtPadding;
-            }
-          }
-          return true;
-        }
-      }
-    });
-
-    if (rectX < 0) {
-      rectX = txtPadding;
-      rectY = Math.min(height - rectHeight, y);
-    }
-
-    ctx.save();
-
-    ctx.beginPath();
-    ctx.lineJoin = "round";
-    ctx.lineWidth = 10;
-    ctx.fillStyle = this.state.mode.bg;
-    ctx.strokeStyle = this.state.mode.tooltipShadow;
-
-    ctx.strokeRect(
-      rectX,
-      rectY + (cornerRadius / 2),
-      rectWidth - cornerRadius,
-      rectHeight - cornerRadius
-    );
-
-    ctx.fillRect(
-      rectX,
-      rectY + (cornerRadius / 2),
-      rectWidth - cornerRadius,
-      rectHeight - cornerRadius
-    );
-
-    ctx.beginPath();
-    ctx.strokeStyle = this.state.mode.bg;
-    ctx.strokeRect(
-      rectX + 1,
-      rectY + (cornerRadius / 2) + 1,
-      rectWidth - cornerRadius - 3,
-      rectHeight - cornerRadius - 3
-    );
-
-    ctx.beginPath();
-    ctx.fillStyle = this.state.mode.tooltipTxt;
-    ctx.font = fontDate;
-    ctx.fillText(dateStr, rectX + 10, rectY + 25);
-
-    let prevText = 0;
-
-    this.axes.forEach((axis, index) => {
-      if (axis.draw) {
-        ctx.beginPath();
-        ctx.fillStyle = axis.color;
-        ctx.font = fontValue;
-        ctx.fillText(axis.dots[this.start + ind], rectX + txtPadding + prevText, rectY +60);
-
-        ctx.beginPath();
-        ctx.font = fontName;
-        ctx.fillText(axis.name, rectX + txtPadding + prevText, rectY + 80);
-
-        prevText += txtPadding + textWidth[axis.id].width;
-      }
-    });
-
-    ctx.restore();
   }
 
   draw() {
-    this.calcRangePosition();
-    this.mainMaxY = this.drawChart(this.mainCtx, true, this.start, this.finish);
-    this.rangeMaxY = this.drawChart(this.rangeCtx);
+    this.mainPlot.draw(this.calcRangePosition());
+    this.rangePlot.draw();
   }
 
   redrawChart() {
-    this.calcRangePosition();
-    this.mainMaxY = this.drawChart(this.mainCtx, true, this.start, this.finish);
+    this.mainPlot.draw(this.calcRangePosition());
   }
 
-  drawChart(ctx, displayLabels, start=0, finish) {
-    finish = finish || this.time.length;
+  drawChecked() {
+    let mainRatio = this.mainPlot.getRatios(this.state.axesChecked);
+    let rangeRatio = this.rangePlot.getRatios(this.state.axesChecked);
 
-    const maxY = this.maxY(start, finish);
+    mainRatio.oldVal += mainRatio.diff();
+    rangeRatio.oldVal += rangeRatio.diff();
 
-    const ratioX = ctx.canvas.width / (finish - start - 1);
-    const ratioY = ctx.canvas.height / maxY;
-
-    Chart.clrScr(ctx);
-
-    if (displayLabels) {
-      this.drawAxesLabels(ctx, maxY, ratioX, ratioY);
-    }
-
-    this.axes.forEach(y => {
-      if (y.draw) {
-        ctx.beginPath();
-        ctx.moveTo(0, y.dots[start] * ratioY);
-
-        for(let i = start; i < finish; i++) {
-          ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
-        }
-
-        ctx.strokeStyle = y.color;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-      }
-    });
-
-    return maxY;
-  }
-
-  drawSmooth() {
-
-    const frames = 50;
-    const newMainMax = this.maxY(this.start, this.finish);
-    const newRangeMax = this.maxY();
-
-    const ratio = {
-      newMain: this.mainCtx.canvas.height / newMainMax,
-      oldMain: this.mainCtx.canvas.height / this.mainMaxY,
-      incMaxY: this.mainMaxY,
-      stepMaxY: (newMainMax - this.mainMaxY) / frames,
-      newRange: this.rangeCtx.canvas.height / newRangeMax,
-      oldRange: this.rangeCtx.canvas.height / this.rangeMaxY
-    };
-
-    const mainDiff = (ratio.newMain - ratio.oldMain) / frames;
-    ratio.oldMain += mainDiff;
-
-    const rangeDiff = (ratio.newRange - ratio.oldRange) / frames;
-    ratio.oldRange += rangeDiff;
-
-    const checked = this.getAxis(this.state.axesChecked);
+    const checked = this.state.axesChecked;
     let opacity = checked.draw ? 0 : 1;
     let opacityStep = (checked.draw ? 1 : -1) * 2 / 100;
 
-    const step = () => {
-      this.drawChartSmooth(this.mainCtx, ratio.oldMain, opacity,
-        ratio.incMaxY, this.start, this.finish);
-      this.drawChartSmooth(this.rangeCtx, ratio.oldRange, opacity);
+    let {start, finish} = this.calcRangePosition();
 
-      ratio.oldMain += mainDiff;
-      ratio.oldRange += rangeDiff;
+    const step = () => {
+      this.mainPlot.drawChecked(mainRatio.oldVal, opacity,
+        mainRatio.incMaxY, start, finish);
+      this.rangePlot.drawChecked(rangeRatio.oldVal, opacity);
+
+      mainRatio.oldVal += mainRatio.diff();
+      rangeRatio.oldVal += rangeRatio.diff();
       opacity += opacityStep;
-      ratio.incMaxY += ratio.stepMaxY;
+      mainRatio.incMaxY += mainRatio.stepMaxY;
 
       if (
-        mainDiff > 0 && ratio.oldMain < ratio.newMain ||
-        mainDiff < 0 && ratio.oldMain > ratio.newMain ||
-        (mainDiff === 0 && opacity > 0 && opacity < 1)
+        mainRatio.diff() > 0 && mainRatio.oldVal < mainRatio.newVal ||
+        mainRatio.diff() < 0 && mainRatio.oldVal > mainRatio.newVal ||
+        (mainRatio.diff() === 0 && opacity > 0 && opacity < 1)
       ) {
         window.requestAnimationFrame(step);
       } else {
         this.state.axesChecked = false;
-        this.mainMaxY = newMainMax;
-        this.rangeMaxY = newRangeMax;
         this.draw();
       }
     };
     window.requestAnimationFrame(step);
-  }
-
-  drawChartSmooth(ctx, ratioY, opacity, maxY, start=0, finish) {
-    finish = finish || this.time.length;
-
-    const ratioX = ctx.canvas.width / (finish - start - 1);
-
-    Chart.clrScr(ctx);
-
-    if (maxY) {
-      this.drawAxesLabels(ctx, maxY, ratioX, ratioY);
-    }
-
-    this.axes.forEach(y => {
-      if (y.draw || y.id === this.state.axesChecked) {
-        ctx.beginPath();
-        ctx.moveTo(0, y.dots[start] * ratioY);
-
-        for(let i = start; i < finish; i++) {
-          ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
-        }
-
-        if (y.id === this.state.axesChecked) {
-          ctx.globalAlpha = opacity;
-        }
-
-        ctx.strokeStyle = y.color;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-
-        ctx.globalAlpha = 1;
-      }
-    });
-  }
-
-  drawAxesLabels(ctx, maxY, ratioX, ratioY) {
-    const height = ctx.canvas.height;
-
-    ctx.beginPath();
-    ctx.moveTo(0, 1);
-    ctx.lineTo(ctx.canvas.width, 1);
-
-    ctx.fillStyle = this.state.mode.axesTxt;
-    ctx.font = '14px verdana, sans-serif';
-    ctx.fillText('0', 5, 20);
-
-    let prev, i = 1;
-    const tick = getAxisTickSize(0, maxY, height);
-
-    do {
-      const y = tick * i;
-      const yTxt = height - (y * ratioY) - 10;
-
-      if (yTxt - 15 > 0) {
-        ctx.moveTo(0, y * ratioY);
-        ctx.lineTo(ctx.canvas.width, y * ratioY );
-
-        ctx.save();
-        ctx.resetTransform();
-        ctx.fillText(y, 5, yTxt);
-        ctx.restore();
-      }
-
-      prev = y;
-      i++;
-    } while (prev <= maxY);
-    
-    ctx.strokeStyle = this.state.mode.axes;
-    ctx.lineWidth = 2;
-    ctx.stroke();
   }
 }
 
