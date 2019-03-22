@@ -473,7 +473,7 @@ class AxesLabels {
 
   prepareX({min, max, ratio}) {
     let prev = min, i = 1;
-    let tick = AxesLabels.getAxisTickSize(min, max, this.width, 5);
+    let tick = Math.ceil(AxesLabels.getAxisTickSize(min, max, this.width, 5));
 
     const vertPos = this.height - 10;
 
