@@ -60,7 +60,8 @@ const styleClasses = {
   rsRightBar: rangeSelector + '__right-bar',
   checkAxes: 'check-axes',
   checkedLabel: 'checked-label',
-  modeSwitcher: 'mode-switcher'
+  modeSwitcher: 'mode-switcher',
+  axesLabels: 'axes-labels'
 };
 
 let createElement = function (root, tag, className) {
@@ -369,7 +370,21 @@ Tooltip.prototype = {
 class AxesLabels {
   constructor(data, options) {
     this.data = data;
-    this.options = { ...options };
+    this.options = {...options };
+    this.height = 0;
+    this.width = 0;
+    if (options.elem) {
+      this.ctx = options.elem.getContext('2d');
+      this.height = this.ctx.canvas.height;
+      this.width = this.ctx.canvas.width;
+    }
+    this.init();
+  }
+
+  init() {
+    if (this.ctx) {
+      this.ctx.transform(1, 0, 0, -1, 0, this.height);
+    }
   }
 
   static computeTickSize(min, max, noTicks) {
@@ -403,9 +418,10 @@ class AxesLabels {
   }
 
   prepareY({min, max, ratio}) {
+    const shift = 30;
     let prev, i = 1;
-    let height = this.options.height;
-    let width = this.options.width;
+    let height = this.height - shift;
+    let width = this.width;
     let tick = AxesLabels.getAxisTickSize(min, max, height);
     const aboveLine = 10;
 
@@ -414,8 +430,8 @@ class AxesLabels {
       x: 5,
       y: height - aboveLine,
       text: min,
-      move: { x: 0, y: 1 },
-      line: { x: width, y: 1 }
+      move: { x: 0, y: shift },
+      line: { x: width, y: shift }
     });
 
     do {
@@ -427,8 +443,8 @@ class AxesLabels {
           x: 5,
           y: yPos,
           text: y,
-          move: { x: 0, y: y * ratio },
-          line: { x: width, y: y * ratio }
+          move: { x: 0, y: y * ratio + shift },
+          line: { x: width, y: y * ratio + shift}
         });
       }
       prev = y;
@@ -450,11 +466,9 @@ class AxesLabels {
 
   prepareX({min, max, ratio}) {
     let prev = min, i = 1;
-    let height = this.options.height;
-    let width = this.options.width;
-    let tick = AxesLabels.getAxisTickSize(min, max, width, 6);
+    let tick = AxesLabels.getAxisTickSize(min, max, this.width, 5);
 
-    const vertPos = height - 10;
+    const vertPos = this.height - 10;
 
     let labels = [];
     labels.push({
@@ -493,8 +507,10 @@ class AxesLabels {
       return;
     }
 
+    clrScr(this.ctx);
+
     let axesLabels = this.prepare(xData, yData);
-    let ctx = this.options.ctx;
+    let ctx = this.ctx;
 
     axesLabels.forEach(labels => {
       ctx.beginPath();
@@ -526,10 +542,8 @@ let Plot = function(elem, options) {
   this.options = options;
 
   this.axesLabels = new AxesLabels(options.axes, {
-    ctx: this.ctx,
+    elem: options.axesLabelsElem,
     draw: options.drawLabels,
-    width: this.width(),
-    height: this.height()
   });
 
   if (options.tooltip) {
@@ -704,7 +718,8 @@ class Chart {
       mode: this.state.mode,
       drawLabels: true,
       tooltip: this.tooltipCanvas,
-      axes: axes(this.axes, xAxis)
+      axes: axes(this.axes, xAxis),
+      axesLabelsElem: this.labelsCanvas
     });
 
     this.rangePlot = new Plot(this.rangeCanvas, {
@@ -728,6 +743,10 @@ class Chart {
     this.title.innerText = this.options.title;
 
     const div = createElement(this.root, 'div', styleClasses.mainChartWrap);
+
+    this.labelsCanvas = createElement(div, 'canvas', styleClasses.axesLabels);
+    this.labelsCanvas.setAttribute('width', widthPx);
+    this.labelsCanvas.setAttribute('height', (this.options.height / 3 * 2 + 30) + 'px');
 
     this.mainCanvas = createElement(div,'canvas', styleClasses.mainChart);
     this.mainCanvas.setAttribute('width', widthPx);

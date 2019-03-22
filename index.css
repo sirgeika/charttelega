@@ -16,7 +16,8 @@ body {
   position: relative;
 }
 
-.tooltip {
+.tooltip,
+.main-chart {
   position: absolute;
   left: 0;
 }
@@ -24,7 +25,7 @@ body {
 .range-chart-area {
   position: relative;
   padding: 5px 0;
-  margin-top: 50px;
+  margin-top: 5px;
 }
 
 .range-selector {
