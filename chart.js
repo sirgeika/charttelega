@@ -63,75 +63,16 @@ const styleClasses = {
   modeSwitcher: 'mode-switcher'
 };
 
+let createElement = function (root, tag, className) {
+  const el = document.createElement(tag);
+  if (className) {
+    el.setAttribute('class', className);
+  }
+  return root.appendChild(el);
+};
+
 let clrScr = function(ctx) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
-};
-
-let computeTickSize = function(min, max, noTicks) {
-  const delta = (max - min) / noTicks,
-    dec = -Math.floor(Math.log(delta) / Math.LN10);
-
-  let magn = Math.pow(10, -dec),
-    norm = delta / magn,
-    size;
-
-  if (norm < 1.5) {
-    size = 1;
-  } else if (norm < 3) {
-    size = 2;
-    if (norm > 2.25) {
-      size = 2.5;
-    }
-  } else if (norm < 7.5) {
-    size = 5;
-  } else {
-    size = 10;
-  }
-
-  size *= magn;
-  return size;
-};
-
-let getAxisTickSize = function(min, max, range) {
-  const noTicks = 0.3 * Math.sqrt(range);
-  return computeTickSize(min, max, noTicks);
-};
-
-let drawAxesLabels = function(ctx, colors, maxY, ratioX, ratioY) {
-  const height = ctx.canvas.height;
-
-  ctx.beginPath();
-  ctx.moveTo(0, 1);
-  ctx.lineTo(ctx.canvas.width, 1);
-
-  ctx.fillStyle = colors.axesTxt;
-  ctx.font = '14px verdana, sans-serif';
-  ctx.fillText('0', 5, 20);
-
-  let prev, i = 1;
-  const tick = getAxisTickSize(0, maxY, height);
-
-  do {
-    const y = tick * i;
-    const yTxt = height - (y * ratioY) - 10;
-
-    if (yTxt - 15 > 0) {
-      ctx.moveTo(0, y * ratioY);
-      ctx.lineTo(ctx.canvas.width, y * ratioY );
-
-      ctx.save();
-      ctx.resetTransform();
-      ctx.fillText(y, 5, yTxt);
-      ctx.restore();
-    }
-
-    prev = y;
-    i++;
-  } while (prev <= maxY);
-
-  ctx.strokeStyle = colors.axes;
-  ctx.lineWidth = 2;
-  ctx.stroke();
 };
 
 let Axis = function(axis) {
@@ -193,6 +134,21 @@ let axes = function(axes, x) {
   return {
     y: y,
     x: x,
+    getRangePos: function(callback) {
+      let val;
+      this.y.some(axis =>{
+        if (axis.draw) {
+          val = callback(axis);
+        }
+      });
+      return val;
+    },
+    getRangePositionY: function() {
+      return {
+        start: this.getRangePos(axis => axis.getStart()),
+        finish: this.getRangePos(axis => axis.getFinish())
+      };
+    },
     maxY: function(start, finish) {
       let max = MIN_INF;
       this.y.forEach(axis => {
@@ -410,31 +366,173 @@ Tooltip.prototype = {
   },
 };
 
+class AxesLabels {
+  constructor(data, options) {
+    this.data = data;
+    this.options = { ...options };
+  }
+
+  static computeTickSize(min, max, noTicks) {
+    const delta = (max - min) / noTicks,
+      dec = -Math.floor(Math.log(delta) / Math.LN10);
+
+    let magn = Math.pow(10, -dec),
+      norm = delta / magn,
+      size;
+
+    if (norm < 1.5) {
+      size = 1;
+    } else if (norm < 3) {
+      size = 2;
+      if (norm > 2.25) {
+        size = 2.5;
+      }
+    } else if (norm < 7.5) {
+      size = 5;
+    } else {
+      size = 10;
+    }
+
+    size *= magn;
+    return size;
+  }
+
+  static getAxisTickSize(min, max, range) {
+    let noTicks = 0.3 * Math.sqrt(range);
+    return this.computeTickSize(min, max, noTicks);
+  }
+
+  prepareY(min, max, ratio) {
+    let prev, i = 1;
+    let height = this.options.height;
+    let width = this.options.width;
+    let tick = AxesLabels.getAxisTickSize(min, max, height);
+    const aboveLine = 10;
+
+    let labels = [];
+    labels.push({
+      x: 5,
+      y: height - aboveLine,
+      text: min,
+      move: { x: 0, y: 1 },
+      line: { x: width, y: 1 }
+    });
+
+    do {
+      let y = tick * i;
+      let yPos = height - (y * ratio) - aboveLine;
+
+      if (yPos - 15 > 0) {
+        labels.push({
+          x: 5,
+          y: yPos,
+          text: y,
+          move: { x: 0, y: y * ratio },
+          line: { x: width, y: y * ratio }
+        });
+      }
+      prev = y;
+      i++;
+    } while (prev <= max);
+
+    return labels;
+  }
+
+  prepare(min, max, ratio, axis) {
+    return axis === 'y'
+      ? this.prepareY(min, max, ratio)
+      : this.prepareY(min, max, ratio);
+  }
+
+  draw(min, max, ratio, colors, axis) {
+    if (!this.options.draw) {
+      return;
+    }
+
+    let labels = this.prepare(min, max, ratio, axis);
+    let ctx = this.options.ctx;
+
+    ctx.beginPath();
+    ctx.fillStyle = colors.axesTxt;
+    ctx.font = '14px verdana, sans-serif';
+
+    labels.forEach(lbl => {
+      ctx.moveTo(lbl.move.x, lbl.move.y);
+      ctx.lineTo(lbl.line.x, lbl.line.y);
+
+      ctx.save();
+      ctx.resetTransform();
+      ctx.fillText(lbl.text, lbl.x, lbl.y);
+      ctx.restore();
+    });
+
+    ctx.strokeStyle = colors.axes;
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
+}
+
 let Plot = function(elem, options) {
   this.elem = elem;
   this.ctx = elem.getContext('2d');
   this.options = options;
+
+  this.axesLabels = new AxesLabels(options.axes, {
+    ctx: this.ctx,
+    draw: options.drawLabels,
+    width: this.width(),
+    height: this.height()
+  });
+
+  if (options.tooltip) {
+    this.tooltipElem = options.tooltip;
+    this.tooltip = new Tooltip(this.tooltipElem, {
+      mode: options.mode,
+      axes: options.axes
+    });
+  }
   this.init();
+  this.bindEvents();
 };
 
 Plot.prototype = {
-  init: function() {
+  init() {
     this.ctx.transform(1, 0, 0, -1, 0, this.height());
+  },
+
+  bindEvents() {
+    if (this.tooltipElem) {
+      this.tooltipElem.addEventListener('mousemove', this.showTooltip.bind(this));
+      this.tooltipElem.addEventListener('mouseout', this.hideTooltip.bind(this));
+    }
+  },
+
+  showTooltip(e) {
+    this.tooltip.draw(e.offsetX, e.offsetY, this.options.axes.getRangePositionY());
+  },
+
+  hideTooltip() {
+    this.tooltip.hide();
   },
 
   height: function() {
     return this.ctx.canvas.height;
   },
 
-  setMode: function(mode) {
-    this.options.mode = mode;
+  width() {
+    return this.ctx.canvas.width;
   },
 
-  setCheckedAxis: function(axData) {
+  setMode(mode) {
+    this.options.mode = mode;
+    this.tooltip.setMode(mode);
+  },
+
+  setCheckedAxis(axData) {
     this.axesChecked = axData;
   },
 
-  getRatios: function() {
+  getRatios() {
     let oldMax = this.options.axes.maxY();
     this.options.axes.clearMaxY();
     this.options.axes.checkAxes(this.axesChecked);
@@ -455,20 +553,18 @@ Plot.prototype = {
     };
   },
 
-  draw: function({ start=0, finish } = {}) {
+  draw({ start=0, finish } = {}) {
     finish = finish || this.options.axes.x.length;
 
     const maxY = this.options.axes.maxY(start, finish);
     const ctx = this.ctx;
 
-    const ratioX = ctx.canvas.width / (finish - start - 1);
+    const ratioX = this.width() / (finish - start - 1);
     const ratioY = this.height() / maxY;
 
     this.clrScr();
 
-    if (this.options.drawLabels) {
-      drawAxesLabels(ctx, this.options.mode, maxY, ratioX, ratioY);
-    }
+    this.axesLabels.draw(0, maxY, ratioY, this.options.mode, 'y');
 
     this.options.axes.y.forEach(y => {
       if (y.draw) {
@@ -487,16 +583,15 @@ Plot.prototype = {
     });
   },
 
-  drawChecked: function(ratioY, opacity, maxY, start=0, finish) {
+  drawChecked(ratioY, opacity, maxY, start=0, finish) {
     finish = finish || this.options.axes.x.length;
     const ctx = this.ctx;
-
-    const ratioX = ctx.canvas.width / (finish - start - 1);
+    const ratioX = this.width() / (finish - start - 1);
 
     this.clrScr();
 
     if (maxY) {
-      drawAxesLabels(ctx, this.options.mode, maxY, ratioX, ratioY);
+      this.axesLabels.draw(0, maxY, ratioY, this.options.mode, 'y');
     }
 
     this.options.axes.y.forEach(y => {
@@ -521,7 +616,7 @@ Plot.prototype = {
       }
     });
   },
-  clrScr: function() {
+  clrScr() {
     clrScr(this.ctx);
   }
 };
@@ -545,7 +640,6 @@ class Chart {
     this.init();
     let xAxis = this.initTimeAxis();
     this.createElements();
-    this.initDraw();
     this.bindEvents();
 
     this.xRange = xAxis.length;
@@ -553,7 +647,7 @@ class Chart {
     this.mainPlot = new Plot(this.mainCanvas, {
       mode: this.state.mode,
       drawLabels: true,
-      tooltip: true,
+      tooltip: this.tooltipCanvas,
       axes: axes(this.axes, xAxis)
     });
 
@@ -561,20 +655,7 @@ class Chart {
       axes: axes(this.axes, xAxis)
     });
 
-    this.tooltip = new Tooltip(this.tooltipCanvas, {
-      mode: this.state.mode,
-      axes: axes(this.axes, xAxis)
-    });
-
     this.switchMode();
-  }
-
-  static createElement(root, tag, className) {
-    const el = document.createElement(tag);
-    if (className) {
-      el.setAttribute('class', className);
-    }
-    return root.appendChild(el);
   }
 
   createElements() {
@@ -587,60 +668,60 @@ class Chart {
 
     this.root.style.width = widthPx;
 
-    this.title = Chart.createElement(this.root, 'h2');
+    this.title = createElement(this.root, 'h2');
     this.title.innerText = this.options.title;
 
-    const div = Chart.createElement(this.root, 'div', styleClasses.mainChartWrap);
+    const div = createElement(this.root, 'div', styleClasses.mainChartWrap);
 
-    this.mainCanvas = Chart.createElement(div,'canvas', styleClasses.mainChart);
+    this.mainCanvas = createElement(div,'canvas', styleClasses.mainChart);
     this.mainCanvas.setAttribute('width', widthPx);
     this.mainCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
 
-    this.tooltipCanvas = Chart.createElement(div, 'canvas', styleClasses.tooltip);
+    this.tooltipCanvas = createElement(div, 'canvas', styleClasses.tooltip);
     this.tooltipCanvas.setAttribute('width', widthPx);
     this.tooltipCanvas.setAttribute('height', (this.options.height / 3 * 2) + 'px');
 
-    const area = Chart.createElement(this.root, 'div', styleClasses.rangeChartArea);
+    const area = createElement(this.root, 'div', styleClasses.rangeChartArea);
 
-    this.rangeCanvas = Chart.createElement(area, 'canvas', styleClasses.rangeChart);
+    this.rangeCanvas = createElement(area, 'canvas', styleClasses.rangeChart);
     this.rangeCanvas.setAttribute('width', widthPx);
     this.rangeCanvas.setAttribute('height', rangeCanvasHeightPx);
 
-    this.rSelector = Chart.createElement(area, 'div', styleClasses.rangeSelector);
+    this.rSelector = createElement(area, 'div', styleClasses.rangeSelector);
     this.rSelector.style.width = widthPx;
     this.rSelector.style.height = rangeHeightPx;
 
-    this.rsLeft = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeft);
+    this.rsLeft = createElement(this.rSelector, 'div', styleClasses.rsLeft);
     this.rsLeft.style.height = rangeHeightPx;
     this.rsLeft.style.width = leftWidth + 'px';
 
-    this.rsLeftBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsLeftBar);
+    this.rsLeftBar = createElement(this.rSelector, 'div', styleClasses.rsLeftBar);
     this.rsLeftBar.style.left = leftWidth + 'px';
     this.rsLeftBar.style.height = rangeHeightPx;
 
-    this.rsCenter = Chart.createElement(this.rSelector, 'div', styleClasses.rsCenter);
+    this.rsCenter = createElement(this.rSelector, 'div', styleClasses.rsCenter);
     this.rsCenter.style.height = rangeHeightPx;
     this.rsCenter.style.left = (leftWidth + this.rsLeftBar.clientWidth) + 'px';
     this.rsCenter.style.width = (centerWidth - this.rsLeftBar.clientWidth * 2) + 'px';
 
-    this.rsRightBar = Chart.createElement(this.rSelector, 'div', styleClasses.rsRightBar);
+    this.rsRightBar = createElement(this.rSelector, 'div', styleClasses.rsRightBar);
     this.rsRightBar.style.height = rangeHeightPx;
-    this.rsRight = Chart.createElement(this.rSelector, 'div', styleClasses.rsRight);
+    this.rsRight = createElement(this.rSelector, 'div', styleClasses.rsRight);
     this.rsRight.style.height = rangeHeightPx;
 
     this.createCheckboxAxes();
 
-    const divSwitcher = Chart.createElement(this.root, 'div');
+    const divSwitcher = createElement(this.root, 'div');
     divSwitcher.style.width = '250px';
     divSwitcher.style.margin = '0 auto';
 
-    this.modeSwitcher = Chart.createElement(divSwitcher, 'span', styleClasses.modeSwitcher);
+    this.modeSwitcher = createElement(divSwitcher, 'span', styleClasses.modeSwitcher);
     this.modeSwitcher.innerText = this.state.mode.title;
     this.modeSwitcher.setAttribute('data-mode', 'night');
   }
 
   createCheckboxAxes() {
-    const boxArea = Chart.createElement(this.root, 'div', styleClasses.checkAxes);
+    const boxArea = createElement(this.root, 'div', styleClasses.checkAxes);
 
     this.checkboxAses = this.axes.map((axis) => {
       return {
@@ -651,20 +732,20 @@ class Chart {
   }
 
   createCheckbox(root, axis) {
-    const elem = Chart.createElement(root, 'div');
+    const elem = createElement(root, 'div');
 
     const id = axis.id + '_' +  Math.ceil(Math.random() * 1000);
 
-    const input = Chart.createElement(elem, 'input');
+    const input = createElement(elem, 'input');
     input.setAttribute('type', 'checkbox');
     input.setAttribute('id', id);
     input.setAttribute('checked', true);
 
-    const label = Chart.createElement(elem, 'label');
+    const label = createElement(elem, 'label');
     label.setAttribute('for', id);
     label.innerText = axis.name;
 
-    const checkedLabel = Chart.createElement(label, 'span', styleClasses.checkedLabel);
+    const checkedLabel = createElement(label, 'span', styleClasses.checkedLabel);
     checkedLabel.style.borderColor = axis.color;
     checkedLabel.style.backgroundColor = axis.color;
 
@@ -714,10 +795,6 @@ class Chart {
     }, this);
   }
 
-  initDraw() {
-    this.tooltipCtx = this.tooltipCanvas.getContext('2d');
-  }
-
   initTimeAxis() {
     let time = this.data.columns.find(col => {
       return col[0] === this.x;
@@ -735,8 +812,6 @@ class Chart {
   }
 
   bindEvents() {
-    this.tooltipCanvas.addEventListener('mousemove', this.showTooltip.bind(this));
-    this.tooltipCanvas.addEventListener('mouseout', this.hideTooltip.bind(this));
     this.rsLeftBar.addEventListener('mousedown', this.downLeftBar.bind(this));
     this.rsRightBar.addEventListener('mousedown', this.downRightBar.bind(this));
     this.rsCenter.addEventListener('mousedown', this.downRangeCenter.bind(this));
@@ -751,7 +826,7 @@ class Chart {
     if (newMode) {
       this.modeSwitcher.setAttribute('data-mode', this.state.mode.id);
       this.switchMode(newMode);
-      this.mainPlot.draw(this.calcRangePosition());
+      this.mainPlot.draw(this.getRangePosition());
     }
   }
 
@@ -786,20 +861,7 @@ class Chart {
     if (newMode !== this.state.mode) {
       this.state.mode = newMode;
       this.mainPlot.setMode(this.state.mode); // todo: remove
-      this.tooltip.setMode(this.state.mode);
     }
-  }
-
-  showTooltip(e) {
-    this.tooltip.draw(e.offsetX, e.offsetY, this.calcRangePosition());
-  }
-
-  hideTooltip() {
-    this.tooltip.hide();
-  }
-
-  static clrScr(ctx) {
-    ctx.clearRect(0,0, ctx.canvas.width, ctx.canvas.height);
   }
 
   mouseMove(e) {
@@ -955,7 +1017,7 @@ class Chart {
     this.setMoveElem(leftMove);
   }
 
-  calcRangePosition() {
+  getRangePosition() {
     const leftPos = this.rsLeftBar.offsetLeft;
     const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
     return {
@@ -965,12 +1027,12 @@ class Chart {
   }
 
   draw() {
-    this.mainPlot.draw(this.calcRangePosition());
+    this.mainPlot.draw(this.getRangePosition());
     this.rangePlot.draw();
   }
 
   redrawChart() {
-    this.mainPlot.draw(this.calcRangePosition());
+    this.mainPlot.draw(this.getRangePosition());
   }
 
   drawChecked() {
@@ -984,7 +1046,7 @@ class Chart {
     let opacity = checked.draw ? 0 : 1;
     let opacityStep = (checked.draw ? 1 : -1) * 2 / 100;
 
-    let {start, finish} = this.calcRangePosition();
+    let {start, finish} = this.getRangePosition();
 
     const step = () => {
       this.mainPlot.drawChecked(mainRatio.oldVal, opacity,
