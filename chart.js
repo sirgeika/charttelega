@@ -397,8 +397,8 @@ class AxesLabels {
     return size;
   }
 
-  static getAxisTickSize(min, max, range) {
-    let noTicks = 0.3 * Math.sqrt(range);
+  static getAxisTickSize(min, max, range, ticks) {
+    let noTicks = ticks ? ticks : 0.3 * Math.sqrt(range);
     return this.computeTickSize(min, max, noTicks);
   }
 
@@ -438,14 +438,53 @@ class AxesLabels {
     return labels;
   }
 
-  prepareX(min, max, ratio) {
+  getDataStr(ind) {
+    if (ind < this.data.x.length) {
+      return this.data.x[ind].date.toLocaleString('en', {
+        month: 'short',
+        day: '2-digit'
+      });
+    }
+    return '';
+  }
 
+  prepareX({min, max, ratio}) {
+    let prev = min, i = 1;
+    let height = this.options.height;
+    let width = this.options.width;
+    let tick = AxesLabels.getAxisTickSize(min, max, width, 6);
+
+    const vertPos = height - 10;
+
+    let labels = [];
+    labels.push({
+      x: 5,
+      y: vertPos,
+      text: this.getDataStr(min),
+      move: { x: 0, y: 1 },
+    });
+
+    do {
+      let x = tick * i;
+      let xPos = x * ratio;
+
+      labels.push({
+        x: xPos,
+        y: vertPos,
+        text: this.getDataStr(min + x),
+        move: { x: xPos, y:  vertPos}
+      });
+      prev = min + x;
+      i++;
+    } while (prev + tick <= max);
+
+    return labels;
   }
 
   prepare(xData, yData) {
     return [
       this.prepareY(yData),
-      // this.prepareX(xData)
+      this.prepareX(xData)
     ];
   }
 
@@ -464,7 +503,9 @@ class AxesLabels {
 
       labels.forEach(lbl => {
         ctx.moveTo(lbl.move.x, lbl.move.y);
-        ctx.lineTo(lbl.line.x, lbl.line.y);
+        if (lbl.line) {
+          ctx.lineTo(lbl.line.x, lbl.line.y);
+        }
 
         ctx.save();
         ctx.resetTransform();
