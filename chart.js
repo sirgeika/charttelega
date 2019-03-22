@@ -11,6 +11,9 @@ const defaultOptions = {
   drawPart: 20
 };
 
+let months = [ 'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+let weekdays = [ 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun' ];
+
 const modes = {
   night: {
     id: 'night',
@@ -62,6 +65,17 @@ const styleClasses = {
   checkedLabel: 'checked-label',
   modeSwitcher: 'mode-switcher',
   axesLabels: 'axes-labels'
+};
+
+let formatDate = (d, weekday) => {
+  let arr = [];
+  if (weekday) {
+    arr.push(weekdays[d.getDay()] + ',');
+  }
+  return arr.concat([
+    months[d.getMonth()],
+    d.getDate()
+  ]).join(' ');
 };
 
 let createElement = function (root, tag, className) {
@@ -259,11 +273,7 @@ Tooltip.prototype = {
       }
     });
 
-    const dateStr = this.options.axes.x[start + ind].date.toLocaleString('en', {
-      weekday: 'short',
-      month: 'short',
-      day: '2-digit'
-    });
+    let dateStr = formatDate(this.options.axes.x[start + ind].date, true);
 
     ctx.font = fontDate;
     const textDate = ctx.measureText(dateStr);
@@ -456,10 +466,7 @@ class AxesLabels {
 
   getDataStr(ind) {
     if (ind < this.data.x.length) {
-      return this.data.x[ind].date.toLocaleString('en', {
-        month: 'short',
-        day: '2-digit'
-      });
+      return formatDate(this.data.x[ind].date);
     }
     return '';
   }
