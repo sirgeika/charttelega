@@ -402,7 +402,7 @@ class AxesLabels {
     return this.computeTickSize(min, max, noTicks);
   }
 
-  prepareY(min, max, ratio) {
+  prepareY({min, max, ratio}) {
     let prev, i = 1;
     let height = this.options.height;
     let width = this.options.width;
@@ -438,37 +438,44 @@ class AxesLabels {
     return labels;
   }
 
-  prepare(min, max, ratio, axis) {
-    return axis === 'y'
-      ? this.prepareY(min, max, ratio)
-      : this.prepareY(min, max, ratio);
+  prepareX(min, max, ratio) {
+
   }
 
-  draw(min, max, ratio, colors, axis) {
+  prepare(xData, yData) {
+    return [
+      this.prepareY(yData),
+      // this.prepareX(xData)
+    ];
+  }
+
+  draw(xData, yData, colors) {
     if (!this.options.draw) {
       return;
     }
 
-    let labels = this.prepare(min, max, ratio, axis);
+    let axesLabels = this.prepare(xData, yData);
     let ctx = this.options.ctx;
 
-    ctx.beginPath();
-    ctx.fillStyle = colors.axesTxt;
-    ctx.font = '14px verdana, sans-serif';
+    axesLabels.forEach(labels => {
+      ctx.beginPath();
+      ctx.fillStyle = colors.axesTxt;
+      ctx.font = '14px verdana, sans-serif';
 
-    labels.forEach(lbl => {
-      ctx.moveTo(lbl.move.x, lbl.move.y);
-      ctx.lineTo(lbl.line.x, lbl.line.y);
+      labels.forEach(lbl => {
+        ctx.moveTo(lbl.move.x, lbl.move.y);
+        ctx.lineTo(lbl.line.x, lbl.line.y);
 
-      ctx.save();
-      ctx.resetTransform();
-      ctx.fillText(lbl.text, lbl.x, lbl.y);
-      ctx.restore();
+        ctx.save();
+        ctx.resetTransform();
+        ctx.fillText(lbl.text, lbl.x, lbl.y);
+        ctx.restore();
+      });
+
+      ctx.strokeStyle = colors.axes;
+      ctx.lineWidth = 2;
+      ctx.stroke();
     });
-
-    ctx.strokeStyle = colors.axes;
-    ctx.lineWidth = 2;
-    ctx.stroke();
   }
 }
 
@@ -564,7 +571,11 @@ Plot.prototype = {
 
     this.clrScr();
 
-    this.axesLabels.draw(0, maxY, ratioY, this.options.mode, 'y');
+    this.axesLabels.draw(
+      { min: start, max: finish, ratio: ratioX },
+      { min: 0, max: maxY, ratio: ratioY },
+      this.options.mode
+    );
 
     this.options.axes.y.forEach(y => {
       if (y.draw) {
@@ -591,7 +602,11 @@ Plot.prototype = {
     this.clrScr();
 
     if (maxY) {
-      this.axesLabels.draw(0, maxY, ratioY, this.options.mode, 'y');
+      this.axesLabels.draw(
+        { min: start, max: finish, ratio: ratioX },
+        { min: 0, max: maxY, ratio: ratioY },
+        this.options.mode
+      );
     }
 
     this.options.axes.y.forEach(y => {
