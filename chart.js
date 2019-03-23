@@ -411,13 +411,6 @@ Tooltip.prototype = {
   },
 };
 
-let getAxisTicksMove = (min, ind, step) => {
-  while (ind >= min) {
-    ind -= step;
-  }
-  return Math.max(ind, 0);
-};
-
 class AxesLabels {
   constructor(elem, data, options) {
     this.elem = elem;
@@ -491,18 +484,27 @@ class AxesLabels {
     return this.data.x.length - 3;
   }
 
+  getAxisTicksMove(min) {
+    let step = Math.abs(this.labelsX[1].ind - this.labelsX[0].ind);
+    let i = this.labelsX.dir > 0
+      ? 0
+      : this.labelsX.length - 1;
+
+    let ind = this.labelsX[i].ind;
+    while (ind >= min) {
+      ind -= step;
+    }
+    return {
+      ind: Math.max(ind, 0),
+      step
+    };
+  }
+
   getTicks(min, max, move, noTicks) {
     let tick, ind, step;
     switch (move) {
       case 'move':
-        step = Math.abs(this.labelsX[1].ind - this.labelsX[0].ind);
-        let i = this.labelsX.dir > 0
-          ? 0
-          : this.labelsX.length - 1;
-        tick = {
-          ind: getAxisTicksMove(min, this.labelsX[i].ind, step),
-          step
-        };
+        tick = this.getAxisTicksMove(min);
         break;
       case 'incRight':
       case 'decRight':
@@ -521,7 +523,6 @@ class AxesLabels {
         };
         break;
       case 'incLeft':
-      case 'decLeft':
         ind = max;
         step = -Math.ceil((max - min) / noTicks);
         if (this.hasLabels() && ind !== this.data.x.length - 1) {
@@ -529,6 +530,25 @@ class AxesLabels {
             ? this.labelsX.length - 1
             : 0;
           ind = this.labelsX[i].ind;
+        } else if (step === -1 || step === -2) {
+          ind = max;
+        } else {
+          ind = this.rightEdge();
+        }
+        tick = { step, ind };
+        break;
+      case 'decLeft':
+        ind = max;
+        step = -Math.ceil((max - min) / noTicks);
+        if (this.hasLabels()) {
+          if (step === -1) {
+            ind = max;
+          } else {
+            let i = this.labelsX.dir > 0
+              ? this.labelsX.length - 1
+              : 0;
+            ind = this.labelsX[i].ind;
+          }
         } else {
           ind = this.rightEdge();
         }
@@ -586,7 +606,7 @@ class AxesLabels {
       i++;
     } while (newInd + tick <= max && newInd + tick >= min);
 
-    if (tick < 0 && labels[0].ind === this.rightEdge()) {
+    if (move === 'incLeft' && tick < 0 && labels[0].ind === this.rightEdge()) {
       labels[0].x = this.width - 40;
     }
 
