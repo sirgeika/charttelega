@@ -86,8 +86,12 @@ let createElement = function (root, tag, className) {
   return root.appendChild(el);
 };
 
-let clrScr = function(ctx) {
+let clrScr = (ctx) => {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+};
+
+let include = (n, min, max) => {
+  return n >= min && n <= max;
 };
 
 let computeTickSize = function(min, max, noTicks) {
@@ -174,7 +178,7 @@ Axis.prototype = {
 };
 
 let axes = function(axes, x) {
-  const y = axes.map(axis => new Axis(axis));
+  let y = axes.map(axis => new Axis(axis));
 
   return {
     y: y,
@@ -188,7 +192,7 @@ let axes = function(axes, x) {
       });
       return val;
     },
-    getRangePositionY: function() {
+    getRangePosition: function() {
       return {
         start: this.getRangePos(axis => axis.getStart()),
         finish: this.getRangePos(axis => axis.getFinish())
@@ -407,14 +411,22 @@ Tooltip.prototype = {
   },
 };
 
+let getAxisTicksMove = (min, ind, step) => {
+  while (ind >= min) {
+    ind -= step;
+  }
+  return Math.max(ind, 0);
+};
+
 class AxesLabels {
-  constructor(data, options) {
+  constructor(elem, data, options) {
+    this.elem = elem;
     this.data = data;
     this.options = {...options };
     this.height = 0;
     this.width = 0;
-    if (options.elem) {
-      this.ctx = options.elem.getContext('2d');
+    if (this.elem) {
+      this.ctx = this.elem.getContext('2d');
       this.height = this.ctx.canvas.height;
       this.width = this.ctx.canvas.width;
     }
@@ -432,7 +444,7 @@ class AxesLabels {
     let prev, i = 1;
     let height = this.height - shift;
     let width = this.width;
-    let tick = getAxisTickSize(min, max, height);
+    let tick = Math.ceil(getAxisTickSize(min, max, height));
     const aboveLine = 10;
 
     let labels = [];
@@ -465,40 +477,73 @@ class AxesLabels {
   }
 
   getDataStr(ind) {
-    if (ind < this.data.x.length) {
+    if (ind >= 0 && ind < this.data.x.length) {
       return formatDate(this.data.x[ind].date);
     }
     return '';
   }
 
-  prepareX({min, max, ratio}) {
-    let prev = min, i = 1;
-    let tick = Math.ceil(getAxisTickSize(min, max, this.width, 5));
+  getTicks(min, max, move, noTicks) {
+    let tick;
+    switch (move) {
+      case 'move':
+        let step = this.labelsX[1].ind - this.labelsX[0].ind;
+        tick = {
+          ind: getAxisTicksMove(min, this.labelsX[0].ind, step),
+          step
+        };
+        break;
+      default:
+        tick = Math.ceil(getAxisTickSize(min, max, this.width, noTicks));
+        break;
+    }
+    return tick;
+  }
 
+  prepareX({min, max, ratio, move}) {
+    if (move === 'none') {
+      return this.labelsX;
+    }
+
+    let i = 1;
     const vertPos = this.height - 10;
+    let startX = 0;
+
+    let tick = this.getTicks(min, max, move, 5);
+    if (typeof tick === 'object') {
+      startX = (tick.ind - min) * ratio;
+      min = tick.ind;
+      tick = tick.step;
+    }
+
+    let prev = min;
 
     let labels = [];
     labels.push({
-      x: 5,
+      x: startX + 5,
       y: vertPos,
       text: this.getDataStr(min),
-      move: { x: 0, y: 1 },
+      move: { x: startX, y: 1 },
+      ind: min
     });
 
     do {
       let x = tick * i;
-      let xPos = x * ratio;
+      let xPos = x * ratio + startX;
+      let newInd = min + x;
 
       labels.push({
         x: xPos,
         y: vertPos,
-        text: this.getDataStr(min + x),
-        move: { x: xPos, y:  vertPos}
+        text: this.getDataStr(newInd),
+        move: { x: xPos, y:  vertPos},
+        ind: newInd
       });
-      prev = min + x;
+      prev = newInd;
       i++;
     } while (prev + tick <= max);
 
+    this.labelsX = labels;
     return labels;
   }
 
@@ -548,8 +593,9 @@ let Plot = function(elem, options) {
   this.ctx = elem.getContext('2d');
   this.options = options;
 
-  this.axesLabels = new AxesLabels(options.axes, {
-    elem: options.axesLabelsElem,
+  this.axesLabels = new AxesLabels(
+    options.axesLabelsElem,
+    options.axes, {
     draw: options.drawLabels,
   });
 
@@ -577,7 +623,7 @@ Plot.prototype = {
   },
 
   showTooltip(e) {
-    this.tooltip.draw(e.offsetX, e.offsetY, this.options.axes.getRangePositionY());
+    this.tooltip.draw(e.offsetX, e.offsetY, this.options.axes.getRangePosition());
   },
 
   hideTooltip() {
@@ -622,9 +668,19 @@ Plot.prototype = {
     };
   },
 
+  defMoveType(start, finish, {start: oldStart, finish: oldFinish }) {
+    if (oldStart === start && oldFinish === finish) return 'none';
+    if ((finish - start) === (oldFinish - oldStart)) return 'move';
+    if (oldStart > start) return 'incLeft';
+    if (oldStart < start) return 'decLeft';
+    if (oldFinish > finish) return 'decRight';
+    return 'incRight';
+  },
+
   draw({ start=0, finish } = {}) {
     finish = finish || this.options.axes.x.length;
 
+    let old = this.options.axes.getRangePosition();
     const maxY = this.options.axes.maxY(start, finish);
     const ctx = this.ctx;
 
@@ -634,7 +690,12 @@ Plot.prototype = {
     this.clrScr();
 
     this.axesLabels.draw(
-      { min: start, max: finish, ratio: ratioX },
+      {
+        min: start,
+        max: finish,
+        ratio: ratioX,
+        move: this.defMoveType(start, finish, old)
+      },
       { min: 0, max: maxY, ratio: ratioY },
       this.options.mode
     );
@@ -666,7 +727,7 @@ Plot.prototype = {
     if (maxY) {
       this.axesLabels.draw(
         { min: start, max: finish, ratio: ratioX },
-        { min: 0, max: maxY, ratio: ratioY },
+        { min: 0, max: maxY, ratio: ratioY, move: 'none' },
         this.options.mode
       );
     }
@@ -996,6 +1057,9 @@ class Chart {
         const self = this;
         setTimeout(function() {
           const shift = self.x - newX;
+          if (Math.abs(shift) < 3) {
+            return;
+          }
           self.x = newX;
           self.left -= shift;
 
@@ -1040,6 +1104,9 @@ class Chart {
         const self = this;
         setTimeout(function() {
           const shift = self.x - newX;
+          if (Math.abs(shift) < 3) {
+            return;
+          }
           self.x = newX;
           self.left -= shift;
 
@@ -1076,6 +1143,9 @@ class Chart {
         const self = this;
         setTimeout(function() {
           const shift = self.x - newX;
+          if (Math.abs(shift) < 3) {
+            return;
+          }
           self.x = newX;
           self.left -= shift;
 
