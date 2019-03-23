@@ -574,13 +574,13 @@ class AxesLabels {
   }
 
   prepareX({min, max, ratio, move}) {
-    if (move === 'none') {
+    if (move === 'none' && this.hasLabels()) {
       return this.labelsX;
     }
 
     let i = 1;
     const vertPos = this.height - 10;
-    let startPos, startX = 0;
+    let startPos = 0, startX = 0;
 
     let tick = this.getTicks(min, max, move, 6);
     if (typeof tick === 'object') {
@@ -1319,7 +1319,7 @@ const drawChart = async function(src) {
     const elem = document.querySelector('#chart' + (ind + 1));
     if (elem) {
       const chart = new Chart(elem, d, {
-        drawPart: 25,
+        drawPart: 100,
         title: 'Followers'
       });
       chart.draw();
