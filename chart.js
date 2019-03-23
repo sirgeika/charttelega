@@ -138,10 +138,10 @@ Axis.prototype = {
     return (this.start === -1 ? 0 : this.start);
   },
   getFinish() {
-    return this.finish === -1 ? this.dots.length : this.finish;
+    return this.finish === -1 ? this.dots.length - 1 : this.finish;
   },
   maxY: function(start, finish) {
-    start = start || this.getStart();
+    start = start === -1 ? this.getStart() : start;
     finish = finish || this.getFinish();
 
     if (
@@ -484,14 +484,43 @@ class AxesLabels {
   }
 
   getTicks(min, max, move, noTicks) {
-    let tick;
+    let tick, ind, step;
     switch (move) {
       case 'move':
-        let step = this.labelsX[1].ind - this.labelsX[0].ind;
+        step = Math.abs(this.labelsX[1].ind - this.labelsX[0].ind);
+        let i = this.labelsX.dir > 0
+          ? 0
+          : this.labelsX.length - 1;
         tick = {
-          ind: getAxisTicksMove(min, this.labelsX[0].ind, step),
+          ind: getAxisTicksMove(min, this.labelsX[i].ind, step),
           step
         };
+        break;
+      case 'incRight':
+      case 'decRight':
+        ind = min;
+        if (this.labelsX && this.labelsX.length && ind !== 0) {
+          let i = this.labelsX.dir > 0
+            ? 0
+            : this.labelsX.length - 1;
+          ind = this.labelsX[i].ind;
+        }
+        tick = {
+          step: Math.ceil((max - min) / 5),
+          ind
+        };
+        break;
+      case 'incLeft':
+      case 'decLeft':
+        ind = max;
+        step = -Math.ceil((max - min) / 5);
+        if (this.labelsX && this.labelsX.length && ind !== this.data.x.length - 1) {
+          let i = this.labelsX.dir > 0
+            ? this.labelsX.length - 1
+            : 0;
+          ind = this.labelsX[i].ind;
+        }
+        tick = { step, ind };
         break;
       default:
         tick = Math.ceil(getAxisTickSize(min, max, this.width, noTicks));
@@ -507,43 +536,50 @@ class AxesLabels {
 
     let i = 1;
     const vertPos = this.height - 10;
-    let startX = 0;
+    let startPos, startX = 0;
 
     let tick = this.getTicks(min, max, move, 5);
     if (typeof tick === 'object') {
-      startX = (tick.ind - min) * ratio;
-      min = tick.ind;
+      if (tick.step < 0) {
+        startX = this.width - (max - tick.ind) * ratio;
+        max = tick.ind;
+      } else {
+        startX = (tick.ind - min) * ratio;
+        min = tick.ind;
+      }
+      startPos = tick.ind;
       tick = tick.step;
     }
-
-    let prev = min;
 
     let labels = [];
     labels.push({
       x: startX + 5,
       y: vertPos,
-      text: this.getDataStr(min),
-      move: { x: startX, y: 1 },
-      ind: min
+      text: this.getDataStr(startPos),
+      ind: startPos
     });
 
+    let newInd;
     do {
       let x = tick * i;
       let xPos = x * ratio + startX;
-      let newInd = min + x;
+      newInd = startPos + x;
 
       labels.push({
         x: xPos,
         y: vertPos,
         text: this.getDataStr(newInd),
-        move: { x: xPos, y:  vertPos},
         ind: newInd
       });
-      prev = newInd;
       i++;
-    } while (prev + tick <= max);
+    } while (newInd + tick <= max && newInd + tick >= min);
+
+    if (tick < 0 && labels[0].ind === this.data.x.length - 1) {
+      labels[0].x = labels[0].x -50;
+    }
 
     this.labelsX = labels;
+    this.labelsX.dir = tick;
     return labels;
   }
 
@@ -570,7 +606,9 @@ class AxesLabels {
       ctx.font = '14px verdana, sans-serif';
 
       labels.forEach(lbl => {
-        ctx.moveTo(lbl.move.x, lbl.move.y);
+        if (lbl.move) {
+          ctx.moveTo(lbl.move.x, lbl.move.y);
+        }
         if (lbl.line) {
           ctx.lineTo(lbl.line.x, lbl.line.y);
         }
@@ -726,8 +764,8 @@ Plot.prototype = {
 
     if (maxY) {
       this.axesLabels.draw(
-        { min: start, max: finish, ratio: ratioX },
-        { min: 0, max: maxY, ratio: ratioY, move: 'none' },
+        { min: start, max: finish, ratio: ratioX, move: 'none' },
+        { min: 0, max: maxY, ratio: ratioY },
         this.options.mode
       );
     }
@@ -1022,7 +1060,7 @@ class Chart {
   }
 
   setMoveElem(options) {
-    var defaultOpts = {
+    let defaultOpts = {
       redraw: this.redrawChart.bind(this),
       root: this.rSelector,
       rightBar: this.rsRightBar,
@@ -1174,7 +1212,7 @@ class Chart {
     const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
     return {
       start: Math.floor(leftPos / this.options.width * this.xRange),
-      finish: Math.ceil(rightPos / this.options.width * this.xRange)
+      finish: Math.ceil(rightPos / this.options.width * this.xRange) - 1
     };
   }
 
