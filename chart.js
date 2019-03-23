@@ -141,7 +141,7 @@ Axis.prototype = {
     return this.finish === -1 ? this.dots.length - 1 : this.finish;
   },
   maxY: function(start, finish) {
-    start = start === -1 ? this.getStart() : start;
+    start = start >= 0 ? start : this.getStart();
     finish = finish || this.getFinish();
 
     if (
@@ -263,7 +263,7 @@ Tooltip.prototype = {
 
     const endAngel = (Math.PI/180) * 360;
     const rel = x / width;
-    const parts = finish - start - 1;
+    const parts = finish - start;
     const ind  = Math.round(parts * rel);
 
     const ratioX = width / parts;
@@ -483,6 +483,14 @@ class AxesLabels {
     return '';
   }
 
+  hasLabels() {
+    return this.labelsX && this.labelsX.length
+  }
+
+  rightEdge() {
+    return this.data.x.length - 3;
+  }
+
   getTicks(min, max, move, noTicks) {
     let tick, ind, step;
     switch (move) {
@@ -499,26 +507,30 @@ class AxesLabels {
       case 'incRight':
       case 'decRight':
         ind = min;
-        if (this.labelsX && this.labelsX.length && ind !== 0) {
+        if (this.hasLabels()) {
           let i = this.labelsX.dir > 0
             ? 0
             : this.labelsX.length - 1;
           ind = this.labelsX[i].ind;
+        } else {
+          ind = 2;
         }
         tick = {
-          step: Math.ceil((max - min) / 5),
+          step: Math.ceil((max - min) / noTicks),
           ind
         };
         break;
       case 'incLeft':
       case 'decLeft':
         ind = max;
-        step = -Math.ceil((max - min) / 5);
-        if (this.labelsX && this.labelsX.length && ind !== this.data.x.length - 1) {
+        step = -Math.ceil((max - min) / noTicks);
+        if (this.hasLabels() && ind !== this.data.x.length - 1) {
           let i = this.labelsX.dir > 0
             ? this.labelsX.length - 1
             : 0;
           ind = this.labelsX[i].ind;
+        } else {
+          ind = this.rightEdge();
         }
         tick = { step, ind };
         break;
@@ -538,7 +550,7 @@ class AxesLabels {
     const vertPos = this.height - 10;
     let startPos, startX = 0;
 
-    let tick = this.getTicks(min, max, move, 5);
+    let tick = this.getTicks(min, max, move, 6);
     if (typeof tick === 'object') {
       if (tick.step < 0) {
         startX = this.width - (max - tick.ind) * ratio;
@@ -574,8 +586,8 @@ class AxesLabels {
       i++;
     } while (newInd + tick <= max && newInd + tick >= min);
 
-    if (tick < 0 && labels[0].ind === this.data.x.length - 1) {
-      labels[0].x = labels[0].x -50;
+    if (tick < 0 && labels[0].ind === this.rightEdge()) {
+      labels[0].x = this.width - 40;
     }
 
     this.labelsX = labels;
@@ -722,7 +734,7 @@ Plot.prototype = {
     const maxY = this.options.axes.maxY(start, finish);
     const ctx = this.ctx;
 
-    const ratioX = this.width() / (finish - start - 1);
+    const ratioX = this.width() / (finish - start);
     const ratioY = this.height() / maxY;
 
     this.clrScr();
@@ -743,7 +755,7 @@ Plot.prototype = {
         ctx.beginPath();
         ctx.moveTo(0, y.dots[start] * ratioY);
 
-        for(let i = start; i < finish; i++) {
+        for(let i = start; i <= finish; i++) {
           ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
         }
 
@@ -758,7 +770,7 @@ Plot.prototype = {
   drawChecked(ratioY, opacity, maxY, start=0, finish) {
     finish = finish || this.options.axes.x.length;
     const ctx = this.ctx;
-    const ratioX = this.width() / (finish - start - 1);
+    const ratioX = this.width() / (finish - start);
 
     this.clrScr();
 
@@ -775,7 +787,7 @@ Plot.prototype = {
         ctx.beginPath();
         ctx.moveTo(0, y.dots[start] * ratioY);
 
-        for(let i = start; i < finish; i++) {
+        for(let i = start; i <= finish; i++) {
           ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
         }
 
