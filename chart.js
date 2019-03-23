@@ -500,6 +500,56 @@ class AxesLabels {
     };
   }
 
+  getAxesTicksIncLeft(min, max, noTicks) {
+    let ind = max;
+    let step = -Math.ceil((max - min) / noTicks);
+    if (this.hasLabels() && ind !== this.data.x.length - 1) {
+      let i = this.labelsX.dir > 0
+        ? this.labelsX.length - 1
+        : 0;
+      ind = this.labelsX[i].ind;
+    } else if (step === -1 || step === -2) {
+      ind = max;
+    } else {
+      ind = this.rightEdge();
+    }
+    return { step, ind };
+  }
+
+  getAxesTicksDecLeft(min, max, noTicks) {
+    let ind = max;
+    let step = -Math.ceil((max - min) / noTicks);
+    if (this.hasLabels()) {
+      if (step === -1) {
+        ind = max;
+      } else {
+        let i = this.labelsX.dir > 0
+          ? this.labelsX.length - 1
+          : 0;
+        ind = this.labelsX[i].ind;
+      }
+    } else {
+      ind = this.rightEdge();
+    }
+    return { step, ind };
+  }
+
+  getAxesTicksMoveRight(min, max, noTicks) {
+    let ind = min;
+    if (this.hasLabels()) {
+      let i = this.labelsX.dir > 0
+        ? 0
+        : this.labelsX.length - 1;
+      ind = this.labelsX[i].ind;
+    } else {
+      ind = 2;
+    }
+    return {
+      step: Math.ceil((max - min) / noTicks),
+      ind
+    };
+  }
+
   getTicks(min, max, move, noTicks) {
     let tick, ind, step;
     switch (move) {
@@ -508,51 +558,13 @@ class AxesLabels {
         break;
       case 'incRight':
       case 'decRight':
-        ind = min;
-        if (this.hasLabels()) {
-          let i = this.labelsX.dir > 0
-            ? 0
-            : this.labelsX.length - 1;
-          ind = this.labelsX[i].ind;
-        } else {
-          ind = 2;
-        }
-        tick = {
-          step: Math.ceil((max - min) / noTicks),
-          ind
-        };
+        tick = this.getAxesTicksMoveRight(min, max, noTicks);
         break;
       case 'incLeft':
-        ind = max;
-        step = -Math.ceil((max - min) / noTicks);
-        if (this.hasLabels() && ind !== this.data.x.length - 1) {
-          let i = this.labelsX.dir > 0
-            ? this.labelsX.length - 1
-            : 0;
-          ind = this.labelsX[i].ind;
-        } else if (step === -1 || step === -2) {
-          ind = max;
-        } else {
-          ind = this.rightEdge();
-        }
-        tick = { step, ind };
+        tick = this.getAxesTicksIncLeft(min, max, noTicks);
         break;
       case 'decLeft':
-        ind = max;
-        step = -Math.ceil((max - min) / noTicks);
-        if (this.hasLabels()) {
-          if (step === -1) {
-            ind = max;
-          } else {
-            let i = this.labelsX.dir > 0
-              ? this.labelsX.length - 1
-              : 0;
-            ind = this.labelsX[i].ind;
-          }
-        } else {
-          ind = this.rightEdge();
-        }
-        tick = { step, ind };
+        tick = this.getAxesTicksDecLeft(min, max, noTicks);
         break;
       default:
         tick = Math.ceil(getAxisTickSize(min, max, this.width, noTicks));
