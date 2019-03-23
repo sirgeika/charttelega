@@ -231,13 +231,12 @@ let axes = function(axes, x) {
   };
 };
 
-let Tooltip = function(elem, options) {
-  this.ctx = elem.getContext('2d');
-  this.options = {...options};
-};
-
-Tooltip.prototype = {
-  draw: function(x, y, rangePos) {
+class Tooltip {
+  constructor(elem, options) {
+    this.ctx = elem.getContext('2d');
+    this.options = {...options};
+  }
+  draw(x, y, rangePos) {
     const overlay = function(x1, y1, w, h) {
       return this.x >= x1 && this.x <= (x1 + w) &&
         this.y >= y1 && this.y <= (y1 + h);
@@ -402,14 +401,14 @@ Tooltip.prototype = {
     });
 
     ctx.restore();
-  },
-  hide: function() {
+  }
+  hide() {
     clrScr(this.ctx);
-  },
-  setMode: function(mode) {
+  }
+  setMode(mode) {
     this.options.mode = mode;
-  },
-};
+  }
+}
 
 class AxesLabels {
   constructor(elem, data, options) {
