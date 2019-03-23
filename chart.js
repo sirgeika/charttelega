@@ -20,7 +20,7 @@ const modes = {
     bg: '#2a3240',
     border: '#394758',
     text: '#fff',
-    range: '#44566b',
+    rBg: '#44566b',
     axes: '#44566b',
     axesTxt: '#70797f',
     tooltipTxt: '#fff',
@@ -32,7 +32,7 @@ const modes = {
     bg: '#fff',
     text: '#000',
     border: '#ddd',
-    range: '#ecf0f1',
+    rBg: '#ecf0f1',
     axes: '#ecf0f1',
     axesTxt: '#70797f',
     tooltipTxt: '#595959',
@@ -88,6 +88,36 @@ let createElement = function (root, tag, className) {
 
 let clrScr = function(ctx) {
   ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+};
+
+let computeTickSize = function(min, max, noTicks) {
+  const delta = (max - min) / noTicks,
+    dec = -Math.floor(Math.log(delta) / Math.LN10);
+
+  let magn = Math.pow(10, -dec),
+    norm = delta / magn,
+    size;
+
+  if (norm < 1.5) {
+    size = 1;
+  } else if (norm < 3) {
+    size = 2;
+    if (norm > 2.25) {
+      size = 2.5;
+    }
+  } else if (norm < 7.5) {
+    size = 5;
+  } else {
+    size = 10;
+  }
+
+  size *= magn;
+  return size;
+};
+
+let getAxisTickSize = function(min, max, range, ticks) {
+  let noTicks = ticks ? ticks : 0.3 * Math.sqrt(range);
+  return computeTickSize(min, max, noTicks);
 };
 
 let Axis = function(axis) {
@@ -397,42 +427,12 @@ class AxesLabels {
     }
   }
 
-  static computeTickSize(min, max, noTicks) {
-    const delta = (max - min) / noTicks,
-      dec = -Math.floor(Math.log(delta) / Math.LN10);
-
-    let magn = Math.pow(10, -dec),
-      norm = delta / magn,
-      size;
-
-    if (norm < 1.5) {
-      size = 1;
-    } else if (norm < 3) {
-      size = 2;
-      if (norm > 2.25) {
-        size = 2.5;
-      }
-    } else if (norm < 7.5) {
-      size = 5;
-    } else {
-      size = 10;
-    }
-
-    size *= magn;
-    return size;
-  }
-
-  static getAxisTickSize(min, max, range, ticks) {
-    let noTicks = ticks ? ticks : 0.3 * Math.sqrt(range);
-    return this.computeTickSize(min, max, noTicks);
-  }
-
   prepareY({min, max, ratio}) {
     const shift = 30;
     let prev, i = 1;
     let height = this.height - shift;
     let width = this.width;
-    let tick = AxesLabels.getAxisTickSize(min, max, height);
+    let tick = getAxisTickSize(min, max, height);
     const aboveLine = 10;
 
     let labels = [];
@@ -473,7 +473,7 @@ class AxesLabels {
 
   prepareX({min, max, ratio}) {
     let prev = min, i = 1;
-    let tick = Math.ceil(AxesLabels.getAxisTickSize(min, max, this.width, 5));
+    let tick = Math.ceil(getAxisTickSize(min, max, this.width, 5));
 
     const vertPos = this.height - 10;
 
@@ -927,11 +927,11 @@ class Chart {
       }
     });
 
-    this.rsLeftBar.style.backgroundColor = newMode.range;
-    this.rsRightBar.style.backgroundColor = newMode.range;
-    this.rsCenter.style.borderColor = newMode.range;
-    this.rsRight.style.backgroundColor = newMode.range;
-    this.rsLeft.style.backgroundColor = newMode.range;
+    this.rsLeftBar.style.backgroundColor = newMode.rBg;
+    this.rsRightBar.style.backgroundColor = newMode.rBg;
+    this.rsCenter.style.borderColor = newMode.rBg;
+    this.rsRight.style.backgroundColor = newMode.rBg;
+    this.rsLeft.style.backgroundColor = newMode.rBg;
     this.title.style.color = newMode.text;
 
     this.checkboxAses.forEach(d => {
