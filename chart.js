@@ -829,51 +829,6 @@ Plot.prototype = {
     });
   },
 
-  drawChecked(ratioY, opacity, maxY, options ={}) {
-    let finish = options.finish || this.options.axes.x.length;
-    let start = options.start || 0;
-    const ctx = this.ctx;
-    const ratioX = this.width() / (options.delta || (finish - start));
-
-    let shiftX = ratioX * options.indentFinish || 0;
-    let firstX = this.width() + (shiftX ? ratioX - shiftX : 0);
-    let startInd = Math.min(finish + 1, this.options.axes.x.length - 1);
-
-    this.clrScr();
-
-    this.axesLabels.draw(
-      { min: start, max: finish, ratio: ratioX, move: 'incLeft' },
-      { min: 0, max: maxY, ratio: ratioY },
-      this.options.mode
-    );
-
-    this.options.axes.y.forEach(y => {
-      if (y.draw || y.id === this.axesChecked.id) {
-        ctx.beginPath();
-        ctx.moveTo(firstX, y.dots[startInd] * ratioY);
-
-        let widthWithShift = this.width() + (shiftX ? ratioX - shiftX : 0);
-        let prev = firstX;
-        let i = startInd - 1;
-        do {
-          prev = widthWithShift - (startInd - i) * ratioX;
-          ctx.lineTo(prev, y.dots[i] * ratioY);
-          i--;
-        } while (prev > 0);
-
-        if (y.id === this.axesChecked.id) {
-          ctx.globalAlpha = opacity;
-        }
-
-        ctx.strokeStyle = y.color;
-        ctx.lineWidth = 2;
-        ctx.lineJoin = 'round';
-        ctx.stroke();
-
-        ctx.globalAlpha = 1;
-      }
-    });
-  },
   clrScr() {
     clrScr(this.ctx);
   }
@@ -1340,9 +1295,6 @@ class Chart {
         opacity,
         delta: this.xRange
       }));
-      // this.mainPlot.drawChecked(mainRatio.oldVal, opacity,
-      //   mainRatio.incMaxY, options);
-      // this.rangePlot.drawChecked(rangeRatio.oldVal, opacity);
 
       mainRatio.oldVal += mainRatio.diff();
       rangeRatio.oldVal += rangeRatio.diff();
