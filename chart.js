@@ -738,6 +738,7 @@ Plot.prototype = {
 
     return {
       _diff: null,
+      newMax,
       newVal: this.height() / newMax,
       oldVal: this.height() / oldMax,
       incMaxY: oldMax,
@@ -762,11 +763,12 @@ Plot.prototype = {
     let start = options.start || 0;
 
     let move = options.move || 'incLeft';
-    const maxY = this.options.axes.maxY(start, start + options.delta);
+    const maxY = options.maxY ||
+      this.options.axes.maxY(start, start + options.delta);
     const ctx = this.ctx;
 
     let ratioX = this.width() / options.delta;
-    let ratioY = this.height() / maxY;
+    let ratioY = options.ratioY || this.height() / maxY;
 
     let shiftX = 0, firstX = 0, startInd = start;
     if (isLeftBar(move)) {
@@ -795,7 +797,7 @@ Plot.prototype = {
     );
 
     this.options.axes.y.forEach(y => {
-      if (y.draw) {
+      if (y.draw || y.id === this.axesChecked.id) {
         ctx.beginPath();
         ctx.moveTo(firstX, y.dots[startInd] * ratioY);
         if (isLeftBar(move)) {
@@ -815,10 +817,16 @@ Plot.prototype = {
           }
         }
 
+        if (this.axesChecked && y.id === this.axesChecked.id) {
+          ctx.globalAlpha = options.opacity;
+        }
+
         ctx.strokeStyle = y.color;
         ctx.lineWidth = 2;
         ctx.lineJoin = 'round';
         ctx.stroke();
+
+        ctx.globalAlpha = 1;
       }
     });
   },
@@ -1324,9 +1332,19 @@ class Chart {
     let options = this.getRangePosition();
 
     const step = () => {
-      this.mainPlot.drawChecked(mainRatio.oldVal, opacity,
-        mainRatio.incMaxY, options);
-      this.rangePlot.drawChecked(rangeRatio.oldVal, opacity);
+      this.mainPlot.draw(Object.assign({
+        ratioY: mainRatio.oldVal,
+        opacity,
+        maxY: mainRatio.incMaxY
+      }, options));
+      this.rangePlot.draw(Object.assign({
+        ratioY: rangeRatio.oldVal,
+        opacity,
+        delta: this.xRange
+      }));
+      // this.mainPlot.drawChecked(mainRatio.oldVal, opacity,
+      //   mainRatio.incMaxY, options);
+      // this.rangePlot.drawChecked(rangeRatio.oldVal, opacity);
 
       mainRatio.oldVal += mainRatio.diff();
       rangeRatio.oldVal += rangeRatio.diff();
@@ -1341,7 +1359,7 @@ class Chart {
         window.requestAnimationFrame(step);
       } else {
         this.state.axesChecked = false;
-        this.draw();
+        // this.draw();
       }
     };
     window.requestAnimationFrame(step);
