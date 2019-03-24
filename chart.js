@@ -262,12 +262,14 @@ class Tooltip {
 
     const endAngel = (Math.PI/180) * 360;
     const rel = x / width;
-    const parts = finish - start;
+    const parts = rangePos.delta;
     const ind  = Math.round(parts * rel);
 
     const ratioX = width / parts;
     const ratioY = height / this.options.axes.maxY(start, finish);
-    const xPoint = ind * ratioX;
+    const xPoint = ind * ratioX + rangePos.indentStart * ratioX;
+
+    if (xPoint < 0 || xPoint > width) return;
 
     ctx.beginPath();
     ctx.moveTo(xPoint, 0);
@@ -704,7 +706,8 @@ Plot.prototype = {
   },
 
   showTooltip(e) {
-    this.tooltip.draw(e.offsetX, e.offsetY, this.options.axes.getRangePosition());
+    this.tooltip.draw(e.offsetX, e.offsetY, this.posOptions);
+    // this.tooltip.draw(e.offsetX, e.offsetY, this.options.axes.getRangePosition());
   },
 
   hideTooltip() {
@@ -754,6 +757,8 @@ Plot.prototype = {
       return move === 'incLeft' || move === 'decLeft';
     };
 
+    this.posOptions = options;
+
     let finish = options.finish || this.options.axes.x.length;
     let start = options.start || 0;
 
@@ -764,15 +769,17 @@ Plot.prototype = {
     let ratioX = this.width() / options.delta;
     let ratioY = this.height() / maxY;
 
-    let shiftX, firstX, startInd;
+    let shiftX = 0, firstX = 0, startInd = start;
     if (isLeftBar(move)) {
       shiftX = ratioX * options.indentFinish || 0;
       firstX = this.width() + (shiftX ? ratioX - shiftX : 0);
       startInd = Math.min(finish + 1, this.options.axes.x.length - 1);
     } else {
-      startInd = Math.max(0, start - 1);
-      shiftX = startInd ? ratioX * options.indentStart || 0 : 0;
-      firstX = startInd ? (shiftX - ratioX) : 0;
+      if (start - 1 >= 0) {
+        startInd = start - 1;
+        shiftX = ratioX * options.indentStart || 0;
+        firstX = shiftX - ratioX;
+      }
     }
 
     this.clrScr();
@@ -801,6 +808,9 @@ Plot.prototype = {
             ctx.lineTo(prev, y.dots[i] * ratioY);
             i--;
           } while (prev > 0);
+
+          this.posOptions.indentStart = prev ? (prev + ratioX)/ratioX : 0;
+
         } else {
           for(let i = start; i <= start + options.delta; i++) {
             ctx.lineTo(shiftX + (i - start) * ratioX, y.dots[i] * ratioY);
@@ -827,13 +837,11 @@ Plot.prototype = {
 
     this.clrScr();
 
-    if (this.options.drawLabels) {
-      this.axesLabels.draw(
-        { min: start, max: finish, ratio: ratioX, move: 'incLeft' },
-        { min: 0, max: maxY, ratio: ratioY },
-        this.options.mode
-      );
-    }
+    this.axesLabels.draw(
+      { min: start, max: finish, ratio: ratioX, move: 'incLeft' },
+      { min: 0, max: maxY, ratio: ratioY },
+      this.options.mode
+    );
 
     this.options.axes.y.forEach(y => {
       if (y.draw || y.id === this.axesChecked.id) {
@@ -848,7 +856,6 @@ Plot.prototype = {
           ctx.lineTo(prev, y.dots[i] * ratioY);
           i--;
         } while (prev > 0);
-
 
         if (y.id === this.axesChecked.id) {
           ctx.globalAlpha = opacity;
