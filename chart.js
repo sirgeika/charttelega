@@ -269,8 +269,6 @@ class Tooltip {
     const ratioY = height / this.options.axes.maxY(start, finish);
     let xPoint = ind * ratioX + rangePos.indentStart * ratioX;
 
-    if (xPoint < 0 || xPoint > width) return;
-
     ctx.beginPath();
     ctx.moveTo(xPoint, 0);
     ctx.lineTo(xPoint, height);
@@ -809,7 +807,7 @@ Plot.prototype = {
             ctx.lineTo(prev, y.dots[i] * ratioY);
             i--;
           } while (prev > 0);
-          this.posOptions.start = i+1;
+          this.posOptions.start = i+ (prev ? 2 : 1);
           this.posOptions.indentStart = prev ? (prev + ratioX)/ratioX : 0;
         } else {
           for(let i = start; i <= start + options.delta; i++) {
@@ -1354,12 +1352,12 @@ class Chart {
       if (
         mainRatio.diff() > 0 && mainRatio.oldVal < mainRatio.newVal ||
         mainRatio.diff() < 0 && mainRatio.oldVal > mainRatio.newVal ||
-        (mainRatio.diff() === 0 && opacity > 0 && opacity < 1)
+        (mainRatio.diff() === 0 && opacity > 0 && opacity < 1) ||
+        (mainRatio.stepMaxY > 0 && mainRatio.incMaxY < mainRatio.newMax)
       ) {
         window.requestAnimationFrame(step);
       } else {
         this.state.axesChecked = false;
-        // this.draw();
       }
     };
     window.requestAnimationFrame(step);
