@@ -162,7 +162,7 @@ Axis.prototype = {
     }
 
     this.max = MIN_INF;
-    for(let i = start; i < finish; i++) {
+    for(let i = start; i <= finish; i++) {
       if (this.dots[i] > this.max) {
         this.max = this.dots[i];
         this.indexMax = i;
@@ -749,24 +749,31 @@ Plot.prototype = {
     };
   },
 
-  defMoveType(start, finish, {start: oldStart, finish: oldFinish }) {
-    if (oldStart === start && oldFinish === finish) return 'none';
-    if ((finish - start) === (oldFinish - oldStart)) return 'move';
-    if (oldStart > start) return 'incLeft';
-    if (oldStart < start) return 'decLeft';
-    if (oldFinish > finish) return 'decRight';
-    return 'incRight';
-  },
+  draw(options = {}) {
+    let isLeftBar = (move) => {
+      return move === 'incLeft' || move === 'decLeft';
+    };
 
-  draw({ start=0, finish } = {}) {
-    finish = finish || this.options.axes.x.length;
+    let finish = options.finish || this.options.axes.x.length;
+    let start = options.start || 0;
 
-    let old = this.options.axes.getRangePosition();
-    const maxY = this.options.axes.maxY(start, finish);
+    let move = options.move || 'incLeft';
+    const maxY = this.options.axes.maxY(start, start + options.delta);
     const ctx = this.ctx;
 
-    const ratioX = this.width() / (finish - start);
-    const ratioY = this.height() / maxY;
+    let ratioX = this.width() / options.delta;
+    let ratioY = this.height() / maxY;
+
+    let shiftX, firstX, startInd;
+    if (isLeftBar(move)) {
+      shiftX = ratioX * options.indentFinish || 0;
+      firstX = this.width() + (shiftX ? ratioX - shiftX : 0);
+      startInd = Math.min(finish + 1, this.options.axes.x.length - 1);
+    } else {
+      startInd = Math.max(0, start - 1);
+      shiftX = startInd ? ratioX * options.indentStart || 0 : 0;
+      firstX = startInd ? (shiftX - ratioX) : 0;
+    }
 
     this.clrScr();
 
@@ -775,7 +782,7 @@ Plot.prototype = {
         min: start,
         max: finish,
         ratio: ratioX,
-        move: this.defMoveType(start, finish, old)
+        move
       },
       { min: 0, max: maxY, ratio: ratioY },
       this.options.mode
@@ -784,10 +791,20 @@ Plot.prototype = {
     this.options.axes.y.forEach(y => {
       if (y.draw) {
         ctx.beginPath();
-        ctx.moveTo(0, y.dots[start] * ratioY);
-
-        for(let i = start; i <= finish; i++) {
-          ctx.lineTo((i - start) * ratioX, y.dots[i] * ratioY);
+        ctx.moveTo(firstX, y.dots[startInd] * ratioY);
+        if (isLeftBar(move)) {
+          let widthWithShift = this.width() + (shiftX ? ratioX - shiftX : 0);
+          let prev = firstX;
+          let i = startInd - 1;
+          do {
+            prev = widthWithShift - (startInd - i) * ratioX;
+            ctx.lineTo(prev, y.dots[i] * ratioY);
+            i--;
+          } while (prev > 0);
+        } else {
+          for(let i = start; i <= start + options.delta; i++) {
+            ctx.lineTo(shiftX + (i - start) * ratioX, y.dots[i] * ratioY);
+          }
         }
 
         ctx.strokeStyle = y.color;
@@ -1104,7 +1121,9 @@ class Chart {
 
   setMoveElem(options) {
     let defaultOpts = {
-      redraw: this.redrawChart.bind(this),
+      redraw: (typeMove) => {
+        return this.redrawChart.bind(this, typeMove)
+      },
       root: this.rSelector,
       rightBar: this.rsRightBar,
       leftBar: this.rsLeftBar,
@@ -1138,7 +1157,7 @@ class Chart {
         const self = this;
         setTimeout(function() {
           const shift = self.x - newX;
-          if (Math.abs(shift) < 3) {
+          if (!Math.abs(shift)) {
             return;
           }
           self.x = newX;
@@ -1166,7 +1185,7 @@ class Chart {
           self.rightElem.style.width =
             (Math.max(widthRoot - rightElemPos, 0)) + 'px';
 
-          window.requestAnimationFrame(self.redraw);
+          window.requestAnimationFrame(self.redraw('move'));
         }, moveTimeout);
       }
     };
@@ -1185,7 +1204,7 @@ class Chart {
         const self = this;
         setTimeout(function() {
           const shift = self.x - newX;
-          if (Math.abs(shift) < 3) {
+          if (!Math.abs(shift)) {
             return;
           }
           self.x = newX;
@@ -1205,7 +1224,8 @@ class Chart {
 
           self.centerElem.style.width = (self.left - leftCenter) + 'px';
 
-          window.requestAnimationFrame(self.redraw);
+          let redraw = self.redraw(shift < 0 ? 'decRigth' : 'incRight');
+          window.requestAnimationFrame(redraw);
         }, moveTimeout);
       }
     };
@@ -1224,7 +1244,7 @@ class Chart {
         const self = this;
         setTimeout(function() {
           const shift = self.x - newX;
-          if (Math.abs(shift) < 3) {
+          if (!Math.abs(shift)) {
             return;
           }
           self.x = newX;
@@ -1243,7 +1263,8 @@ class Chart {
           self.centerElem.style.width = (self.centerElem.clientWidth + shift) + 'px';
           self.centerElem.style.left = (self.left + widthBar) + 'px';
 
-          window.requestAnimationFrame(self.redraw);
+          let redraw = self.redraw(shift < 0 ? 'incLeft' : 'decLeft');
+          window.requestAnimationFrame(redraw);
         }, moveTimeout);
       }
     };
@@ -1253,19 +1274,24 @@ class Chart {
   getRangePosition() {
     const leftPos = this.rsLeftBar.offsetLeft;
     const rightPos = this.rsRightBar.offsetLeft + this.rsRightBar.clientWidth;
+    let st = leftPos / this.options.width * this.xRange;
+    let fin = rightPos / this.options.width * this.xRange;
     return {
-      start: Math.floor(leftPos / this.options.width * this.xRange),
-      finish: Math.ceil(rightPos / this.options.width * this.xRange) - 1
+      indentStart: Math.ceil(st) - st,
+      indentFinish: fin - Math.floor(fin),
+      start: Math.ceil(st),
+      finish: Math.floor(fin) - 1,
+      delta: Math.round(fin - st) - 1
     };
   }
 
   draw() {
     this.mainPlot.draw(this.getRangePosition());
-    this.rangePlot.draw();
+    this.rangePlot.draw({delta: this.xRange});
   }
 
-  redrawChart() {
-    this.mainPlot.draw(this.getRangePosition());
+  redrawChart(move) {
+    this.mainPlot.draw({...this.getRangePosition(), move});
   }
 
   drawChecked() {
@@ -1318,7 +1344,7 @@ const drawChart = async function(src) {
     const elem = document.querySelector('#chart' + (ind + 1));
     if (elem) {
       const chart = new Chart(elem, d, {
-        drawPart: 100,
+        drawPart: 30,
         title: 'Followers'
       });
       chart.draw();
