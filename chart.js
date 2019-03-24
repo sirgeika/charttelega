@@ -261,13 +261,13 @@ class Tooltip {
     };
 
     const endAngel = (Math.PI/180) * 360;
-    const rel = x / width;
-    const parts = rangePos.delta;
-    const ind  = Math.round(parts * rel);
+    let rel = x / width;
+    let parts = rangePos.delta;
+    let ind  = Math.round(parts * rel);
 
     const ratioX = width / parts;
     const ratioY = height / this.options.axes.maxY(start, finish);
-    const xPoint = ind * ratioX + rangePos.indentStart * ratioX;
+    let xPoint = ind * ratioX + rangePos.indentStart * ratioX;
 
     if (xPoint < 0 || xPoint > width) return;
 
@@ -707,7 +707,6 @@ Plot.prototype = {
 
   showTooltip(e) {
     this.tooltip.draw(e.offsetX, e.offsetY, this.posOptions);
-    // this.tooltip.draw(e.offsetX, e.offsetY, this.options.axes.getRangePosition());
   },
 
   hideTooltip() {
@@ -808,9 +807,8 @@ Plot.prototype = {
             ctx.lineTo(prev, y.dots[i] * ratioY);
             i--;
           } while (prev > 0);
-
+          this.posOptions.start = i+1;
           this.posOptions.indentStart = prev ? (prev + ratioX)/ratioX : 0;
-
         } else {
           for(let i = start; i <= start + options.delta; i++) {
             ctx.lineTo(shiftX + (i - start) * ratioX, y.dots[i] * ratioY);
