@@ -1201,7 +1201,7 @@ class Chart {
 
           self.centerElem.style.width = (self.left - leftCenter) + 'px';
 
-          let redraw = self.redraw(shift < 0 ? 'decRigth' : 'incRight');
+          let redraw = self.redraw(shift < 0 ? 'decRight' : 'incRight');
           window.requestAnimationFrame(redraw);
         }, moveTimeout);
       }
